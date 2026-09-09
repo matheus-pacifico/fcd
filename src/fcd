@@ -1,0 +1,1441 @@
+#!/usr/bin/env bash
+
+readonly _FCD_VERSION=0.1.0
+
+_fcd_eol='\n'
+_fcd_out_on_same=""
+_fcd_navigation_mode="dir"
+_fcd_show_hidden=0
+_fcd_follow_symlink=1
+_fcd_root_dir=""
+_fcd_skip_dirs=".git,node_modules"
+_fcd_max_depth="1"
+_fcd_sort=1
+_fcd_sort_order="asc"
+_fcd_height=""
+_fcd_min_height=""
+_fcd_margin="0"
+_fcd_padding="0"
+_fcd_border=""
+_fcd_path_anchor=""
+_fcd_path_truncate="start"
+_fcd_path_column=""
+_fcd_path_padding="1"
+_fcd_cycle=1
+_fcd_highlight_line=0
+_fcd_wrap="word"
+_fcd_no_mouse=""
+_fcd_layout="top"
+_fcd_ellipsis=".."
+_fcd_no_input=""
+_fcd_info="default"
+_fcd_separator=""
+_fcd_p_window="nocycle:nohidden:40%:right"
+_fcd_p_show_dirs=1
+_fcd_p_show_files=0
+_fcd_p_show_hidden=0
+_fcd_p_follow_symlink=1
+_fcd_p_sort=1
+_fcd_p_sort_order="asc"
+_fcd_p_mode="list"
+_fcd_p_max_depth="1"
+_fcd_use_tmux=0
+_fcd_tmux_opts=()
+_fcd_ignore_ctrl_z=""
+_fcd_query=""
+_fcd_define_separator=""
+_fcd_copy_command=""
+
+__fcd_get_skip_dirs_args() {
+	local dirs="$1"
+	local mode="$2"
+	local escape_quotes="$3"
+	local begin_prefix=''
+	local prefix=''
+	local sep=''
+	local suffix=''
+	local end_suffix=''
+	local out=''
+
+	if [[ $mode == "tree" ]]; then
+		begin_prefix="-I '"
+		sep='|'
+		suffix='/'
+		end_suffix="'"
+	else
+		begin_prefix='-type d \( '
+		end_suffix=' \) -o'
+		if [[ -n $mode ]]; then
+			prefix="-name '"
+			suffix="'"
+		elif [[ -n $escape_quotes ]]; then
+			prefix='-name \"'
+			suffix='\"'
+		else
+			prefix='-name "'
+			suffix='"'
+		fi
+	fi
+
+	IFS=',' read -r -a new_dirs <<< "$dirs"
+	for dir in "${new_dirs[@]}"; do
+		[[ -z $dir ]] && continue
+		if [[ -n $out ]]; then
+			out+="${prefix:+ -o $prefix}${sep:-}$dir$suffix"
+		else
+			out+="$begin_prefix${prefix:-}$dir$suffix"
+		fi
+	done
+
+	[[ -n $out ]] && builtin printf '%s' "$out$end_suffix" || builtin printf ''
+}
+
+__fcd_colorize() {
+  local text="$1"
+  local color="$2"
+  local code
+
+  case "$color" in
+    red)    code='\x1b[31m' ;;
+    green)  code='\x1b[32m' ;;
+    yellow) code='\x1b[33m' ;;
+    blue)   code='\x1b[34m' ;;
+    bold)   code='\x1b[1m'  ;;
+    *)      code='\x1b[m'   ;; # Default/Clear
+  esac
+
+  printf '%b%s%b' "$code" "$text" '\x1b[m'
+}
+
+__fcd_make_toast() {
+	local message="$1"
+	local duration="$2"
+	local color="$3"
+	local sleep_time # in seconds
+	local toast
+
+	toast="change-footer($(__fcd_colorize "$message" "$color"))+bg-cancel"
+	case "$duration" in
+		SHORT)   sleep_time=1 ;;
+		MEDIUM)  sleep_time=2 ;;
+		LONG)    sleep_time=4 ;;
+		FOREVER) sleep_time=0 ;;
+		*)       sleep_time=1 ;;
+	esac
+	[[ $sleep_time -ne 0 ]] && toast="$toast+bg-transform-footer(sleep $sleep_time)"
+
+	printf '%s' "$toast"
+}
+
+__fcd_get_list_dir_logic () {
+	local max_depth="$1"
+	local sort="$2"
+	local sort_order="$3"
+	local follow_symlink="$4"
+	local show_hidden="$5"
+	local skip_dirs="$6"
+	local dir="$7"
+	local print_empty="$8"
+	local cmd=''
+
+	if [[ -n $print_empty ]]; then
+		cmd='builtin printf ""'
+	elif [[ -n $show_hidden ]]; then
+		if [[ -n $dir ]]; then
+			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path "'"${dir%/}"'/.*" -o'
+			cmd='builtin printf ".\n" && command find '"${follow_symlink:-}"' "'$dir'" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" "")"' -fstype "sysfs" -o -fstype "devfs" -o -fstype "devtmpfs" -o -fstype "proc" \) -prune -o -type d -printf "%P\n" '"${sort:+ | sort $sort $sort_order}"''
+		else
+			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path \"${FZF_INPUT_LABEL%/}/.*\" -o'
+			cmd='builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"
+		fi
+	else
+		skip_dirs="$(__fcd_get_skip_dirs_args "$skip_dirs" "list" 1)"
+		cmd='if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
+			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -false -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+		else
+			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+		fi'
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_path_location_build_logic() {
+	local padding="$1"
+	local truncate="$2"
+	local ellipsis="$3"
+	local path_anchor="$4"
+	local path_column="$5"
+	local cmd
+
+	cmd='padding=$(printf "%*s" '"$padding"' "")
+	max=$((FZF_COLUMNS))
+	label_length=$((${#PREFIX} + ${#SEP} + ${#_PATH}))
+	path_location="${padding:-}${PREFIX:-}${SEP:-}$_PATH${padding:-}"
+	if (( label_length -le 0 )); then
+		path_location=""
+	elif (( label_length + '"$((padding * 2))"' > max )); then
+		cut=$((max - '"${#ellipsis}"' - '"$((padding * 2))"'))
+		(( cut < 1 )) && cut=1
+		if [[ "'"$truncate"'" == "start" ]]; then
+			path_location="${padding:-}${PREFIX:-}${SEP:-}'"${ellipsis:-}"'${_PATH: -cut}${padding:-}"
+		elif [[ "'"$truncate"'" == "end" ]]; then
+			path_location="${padding:-}${PREFIX:-}${SEP:-}${_PATH:0:cut}'"${ellipsis:-}"'${padding:-}"
+		fi
+	fi'
+	if [[ $path_anchor == "header" ]]; then
+	  if (( path_column == 0 )); then
+      cmd="$cmd"'
+			spaces=$(((max - ${#path_location}) / 2 - 2))
+			(( spaces < 0 )) && spaces=0
+			path_location=$(printf "%${spaces}s%s" "" "$path_location")'
+    elif (( path_column > 3 )); then
+      cmd="$cmd"'
+			spaces=$(('"$path_column"' - 3))
+			path_location=$(printf "%${spaces}s%s" "" "$path_location")'
+    elif (( path_column < 0 )); then
+      cmd="$cmd"'
+			offset=$((-'"$path_column"'))
+			spaces=$((max - ${#path_location} - offset - 1))
+			(( spaces < 0 )) && spaces=0
+			path_location=$(printf "%${spaces}s%s" "" "$path_location")'
+    fi
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_path_location_action() {
+	local path_anchor="$1"
+	local return_noop="$2"
+	local plus="$3"
+	local cmd=''
+
+	if [[ $path_anchor =~ ^(top|bottom)$ ]]; then
+		cmd="${plus:++}"'change-border-label($path_location)'
+	elif [[ $path_anchor == "header" ]]; then
+		cmd="${plus:++}"'change-header($path_location)'
+	elif [[ -n $return_noop ]]; then
+		cmd='noop'
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_go_to_logic() {
+	local max_depth="$1"
+	local sort="$2"
+	local sort_order="$3"
+	local follow_symlink="$4"
+	local skip_dirs="$5"
+	local path_padding="$6"
+	local path_truncate="$7"
+	local ellipsis="$8"
+	local path_anchor="$9"
+	local path_column="${10}"
+	local cmd
+
+	cmd='if [[ $_PATH == $FZF_INPUT_LABEL ]]; then
+		printf "noop"
+	else
+		FZF_INPUT_LABEL="$_PATH"
+		'"$(__fcd_get_path_location_build_logic "$path_padding" "$path_truncate" "$ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+		printf "%s" "change-input-label($_PATH)+change-border-label($path_location)+clear-query+rebind(load)+change-list-label(1)+pos(1)+reload('"$(__fcd_get_list_dir_logic "$max_depth" "$sort" "$sort_order" "$follow_symlink" "" "$skip_dirs")"')"
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_preview_label_logic() {
+	local cmd='selected={}
+	if [[ -n $selected && $selected != "." ]]; then
+		selected="${selected%%$'"'\t'"'*}"
+		max="$FZF_PREVIEW_COLUMNS"
+		label_length="${#selected}"
+		if (( label_length -le 0 )); then
+			printf ""
+		elif (( label_length + 2 <= max )); then 
+			printf " %s " "$selected"
+		else
+			printf "%s" "$selected"
+		fi
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_rebuild_path() {
+	local cmd='base_path="${FZF_INPUT_LABEL%%$'"'\t'"'*}"
+		_path="${FZF_INPUT_LABEL##*$'"'\t'"'}"
+		FZF_INPUT_LABEL="${base_path%/}/${_path#/}"'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_layout() {
+	local layout="$1"
+
+	case "$layout" in
+		bottom)   builtin printf 'default' ;;
+		top-list) builtin printf 'reverse-list' ;;
+		top|*)    builtin printf 'reverse' ;;
+	esac
+}
+
+__fcd_get_path_anchor() {
+	local border_style="$1"
+	local layout="$2"
+	local height="$3"
+	
+	if [[ $border_style =~ ^(none|right|left|vertical)$ ]]; then
+		builtin printf 'header'
+	elif [[ $border_style == "line" && -z $height ]]; then
+		builtin printf 'header'
+	elif [[ $border_style == "bottom" ]]; then
+		[[ $layout == "top" ]] && builtin printf 'header' || builtin printf 'bottom'
+	else
+		builtin printf 'top'
+	fi
+}
+
+__fcd_get_path_column() {
+	local border_style="$1"
+	local path_anchor="$2"
+	
+	if [[ $path_anchor == "header" ]]; then
+		builtin printf '3'
+	elif [[ $border_style =~ ^(top|bottom|horizontal|line)$ ]]; then
+		builtin printf '2'
+	else
+		builtin printf '4'
+	fi
+}
+
+__fcd_get_preview_command() {
+	local mode="$1"
+	local show_dirs="$2"
+	local show_files="$3"
+	local max_depth="$4"
+	local sort="$5"
+	local sort_order="$6"
+	local show_hidden="$7"
+	local follow_symlink="$8"
+	local skip_dirs="$9"
+	local cmd args
+
+	[[ $follow_symlink -eq 0 ]] && follow_symlink=""
+	skip_dirs="$(__fcd_get_skip_dirs_args "$skip_dirs" "$mode" "")"
+	if [[ $mode == "tree" ]]; then
+		cmd='command tree -C '"${follow_symlink:+-l}"' --noreport "$full_path"'
+		[[ $sort -eq 1 ]] && sort="${sort_order:-}" || sort="-U"
+		[[ $show_hidden -eq 0 ]] && show_hidden="" || show_hidden="-a"
+		args="$show_hidden $sort"
+		if [[ $show_dirs -eq 0 ]]; then
+			args+=" --prune"
+		elif [[ $show_files -eq 0 ]]; then
+			args+=" -d"
+		fi
+		args+=" $skip_dirs"
+		if [[ $max_depth -eq 1 ]]; then
+      args+=" -L 1 -i -F"
+			[[ $show_dirs -eq 0 ]] && args+=" | sed '1d; /\/$/d'"  || args+=" | sed '1d'"
+		else
+      args+=" ${max_depth:+ -L $max_depth} | sed '1d; s/^.\{4\}//'"
+		fi
+	else
+		cmd='command find '"${follow_symlink:+-L}"' "$full_path"'
+		[[ $sort -eq 1 ]] && sort="-h" || sort=""
+		[[ $show_hidden -eq 0 ]] && show_hidden="-path \"\${full_path%/}/.*\"" || show_hidden="-false"
+    if [[ $show_dirs -eq 0 ]]; then
+			args="-o -type f -printf '%P\n'"
+		else
+			[[ $show_files -eq 0 ]] && args="-o -type d -printf '%P\n'" || args="-o -type d -printf '%P/\n' -o -type f -printf '%P\n'"
+		fi
+		args="-mindepth 1 ${max_depth:+ -maxdepth $max_depth} \\( $show_hidden -o $skip_dirs -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune ${args} 2>/dev/null ${sort:+ | sort $sort $sort_order}"
+		[[ $mode == "grid" ]] &&	args="$args | paste -d $'\v' - - | sed 's/\v/ | /g; s/ | $//'"
+	fi
+
+	builtin printf '%s %s' "$cmd" "$args"
+}
+
+__fcd_get_preview_logic() {
+	local mode="$1"
+	local show_dirs="$2"
+	local show_files="$3"
+	local max_depth="$4"
+	local sort="$5"
+	local sort_order="$6"
+	local follow_symlink="$7"
+	local skip_dirs="$8"
+	local cmd
+	
+	cmd='if [[ $SELECTED == "." ]]; then
+    text="── Current directory ──"
+    padding=$(( (FZF_PREVIEW_COLUMNS - ${#text}) / 2 ))
+    (( padding < 0 )) && padding=0
+    printf "%${padding}s%s" "" "$text"
+	elif [[ -n $SELECTED ]]; then
+		full_path="${FZF_INPUT_LABEL%/}/${SELECTED#/}"
+		if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
+			'"$(__fcd_get_preview_command "$mode" "$show_dirs" "$show_files" "$max_depth" "$sort" "$sort_order" 1 "$follow_symlink" "$skip_dirs")"'
+		else
+			'"$(__fcd_get_preview_command "$mode" "$show_dirs" "$show_files" "$max_depth" "$sort" "$sort_order" 0 "$follow_symlink" "$skip_dirs")"'
+		fi
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_enter_action() {
+	local cmd='selected={}
+	if [[ $selected == "." ]]; then
+		final_path="$FZF_INPUT_LABEL"
+	else
+		selected="${selected##*$'"'\t'"'}"
+		final_path="${FZF_INPUT_LABEL%/}/${selected#/}"
+	fi
+	printf "enter\n%s\n0\n2,2" "$final_path"'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_copy_path_logic() {
+	local copy_command="$1"
+	local copy_selected="$2"
+	local resolved_path=''
+	local cmd=''
+	local success="green"
+	local alert="yellow"
+	local failure="red"
+
+	if [[ -z $copy_command ]]; then
+		cmd='printf "%s" "'"$(__fcd_make_toast "No clipboard utility found!" MEDIUM "$alert")"'"'
+	else
+		if [[ -n $copy_selected ]]; then
+			resolved_path='selected={}
+			selected="${selected##*$'"'\t'"'}"
+			[[ -n $selected && $selected != "." ]] && FZF_INPUT_LABEL="${FZF_INPUT_LABEL%/}/${selected#/}"'
+		fi
+		cmd="$resolved_path"'
+		if [[ -z $FZF_INPUT_LABEL ]]; then
+			printf "%s" "'"$(__fcd_make_toast "No path to copy!" MEDIUM "$alert")"'"
+		elif printf "%s" "$FZF_INPUT_LABEL" | '"$copy_command"' 2>/dev/null; then
+			printf "%s" "'"$(__fcd_make_toast "Path copied to clipboard!" SHORT "$success")"'"
+		else
+			printf "%s" "'"$(__fcd_make_toast "Failed to copy path!" MEDIUM "$failure")"'"
+		fi'
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_nav_pos_logic() {
+	local cmd='[[ -z $FZF_LIST_LABEL ]] && last_position="1" || last_position="${FZF_LIST_LABEL##*,}"
+	printf "pos(%s)" "$last_position"'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_nav_prev_logic() {
+	local cmd='[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*}" || FZF_LIST_LABEL=""'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_nav_next_logic() {
+	local max_depth="$1"
+	local cmd='current_position=$(({n} + 1))'
+
+	if [[ $max_depth -eq 1 ]]; then
+		cmd="$cmd"'
+		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position,1" || FZF_LIST_LABEL="$current_position,1"'
+	else
+		cmd="$cmd"'
+		if [[ -z $FZF_INPUT_LABEL ]]; then
+			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position,1" || FZF_LIST_LABEL="$current_position,1"
+		else
+			bars_only="${SELECTED//[^\/]/}"
+			positions="${bars_only//\//,1}"
+			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position${positions:-},1" || FZF_LIST_LABEL="${current_position}${positions:-},1"
+		fi'
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_dir_alt_q_action() {
+	local max_depth="$1"
+	local cmd='printf "alt-q\n$FZF_INPUT_LABEL\n${FZF_LIST_LABEL:-1}\n$FZF_HEADER_LABEL"'
+
+	if [[ $max_depth -eq 1 ]]; then
+		cmd='current_position={n}
+		current_position="${current_position:-0}"
+		current_position=$((current_position + 1))
+		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position" || FZF_LIST_LABEL="$current_position"
+		'"$cmd"
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_drive_alt_q_action() {
+	local navigation_mode="$1"
+	local cmd='ignore'
+
+	if [[ $navigation_mode == "toggled_drive" ]]; then
+		cmd='become:printf "alt-q\nempty\n1\n$FZF_HEADER_LABEL"'
+	fi
+	
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_info_command() {
+	local cmd='if [[ -n $FZF_INPUT_LABEL ]] && (( FZF_TOTAL_COUNT != 0 )); then
+		((FZF_TOTAL_COUNT--))
+		[[ $FZF_QUERY =~ ^[[:space:].]*$ && ! $FZF_QUERY =~ \.\. ]] && ((FZF_MATCH_COUNT--))
+	fi
+	printf "%s" "$FZF_MATCH_COUNT/$FZF_TOTAL_COUNT"'
+	
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_fzfcmd() {
+	(( _fcd_use_tmux )) && builtin printf 'command fzf-tmux' || builtin printf 'command fzf'
+}
+
+__fcd_launch_dir_fzf() {
+	local toggle_history="$1"
+	local dir="$2"
+	local nav_history="$3"
+
+	local pos_one=""
+	local p_show_hidden='$P_SHOW_HIDDEN'
+	local p_view_hidden
+	local sync_status=0
+	local not_a_dir
+	local path_border_pos
+
+	[[ $_fcd_path_anchor =~ ^(top|bottom)$ ]] && path_border_pos="$_fcd_path_anchor"
+	[[ $_fcd_max_depth -ne 1 ]] && pos_one="pos(1)"
+	if [[ $_fcd_p_show_hidden == "auto" ]]; then
+		p_show_hidden=""
+		sync_status=1
+		p_view_hidden="$_fcd_show_hidden"
+	else
+		p_view_hidden="$_fcd_p_show_hidden"
+	fi
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+
+	if [[ -n $_fcd_root_dir ]]; then
+		if ! dir=$(builtin cd -- "$_fcd_root_dir" 2>/dev/null && builtin pwd); then
+			not_a_dir=1
+			dir="$_fcd_root_dir"
+		fi
+		_fcd_root_dir=""
+	fi
+
+	$(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
+		${_fcd_min_height:+ --min-height "$_fcd_min_height"} ${_fcd_height:+ --height "$_fcd_height"} --layout="$_fcd_layout" --scheme="path" \
+		--input-label="$dir" --input-border="none" --list-label="$nav_history" \
+		--border="$_fcd_border" --border-label-pos="$_fcd_path_column${path_border_pos:+:$path_border_pos}" --list-border="none" \
+		--pointer="▌" --scrollbar="▐┃" --no-multi ${_fcd_cycle:+ --cycle} ${_fcd_highlight_line:+ --highlight-line} \
+		--header-border="none" --header-label="$toggle_history" --header-first \
+		--footer-border="none" ${_fcd_no_input:+ --no-input} \
+		--margin="$_fcd_margin" --padding="$_fcd_padding" --query="$_fcd_query" ${_fcd_no_mouse:+ --no-mouse} --tabstop="1" ${_fcd_wrap:+ --wrap "$_fcd_wrap"} \
+		--ellipsis="$_fcd_ellipsis" --info="$_fcd_info" ${_fcd_define_separator:+ --separator "$_fcd_separator"} \
+		--color="label:blue,preview-label:bright-blue,border:bright-black,header:blue" \
+		--preview-window="$_fcd_p_window" \
+		--preview='SELECTED={}
+				'"$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
+		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
+		--bind 'start:reload:'"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_show_hidden" "$_fcd_skip_dirs" "$dir" "$not_a_dir")" \
+		--bind 'start:+transform:_PATH="$FZF_INPUT_LABEL"
+				'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' ${not_a_dir:+ --bind 'start:+transform: printf "%s" "'"$(__fcd_make_toast "Directory not found!" LONG "red")"'"'} \
+		--bind 'resize:transform-preview-label('"$(__fcd_get_preview_label_logic)"')+transform:_PATH="$FZF_INPUT_LABEL"
+				'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' \
+		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
+		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'left:transform:
+				if [[ $FZF_INPUT_LABEL == "/" ]]; then
+					printf "noop"
+				else
+					'"$(__fcd_get_nav_prev_logic)"'
+					_PATH=$(command dirname "$FZF_INPUT_LABEL")
+					FZF_INPUT_LABEL="$_PATH"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					printf "%s" "change-input-label($_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'right:transform:
+				if [[ -z {} || {} == "." ]]; then
+					printf "noop"
+				else
+					SELECTED={}
+					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					_PATH="${FZF_INPUT_LABEL%/}/${SELECTED#/}"
+					FZF_INPUT_LABEL="$_PATH"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					printf "%s" "change-input-label($_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'ctrl-h:transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+					else
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'alt-h:transform:
+				if [[ -z $FZF_INPUT_LABEL || "'"$sync_status"'" -eq 1 ]]; then
+					printf "noop"
+				else
+					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
+					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					else
+						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
+					fi
+				fi' \
+		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					printf "%s" "rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'ctrl-home:transform:_PATH="$HOME"
+				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
+		--bind 'alt-home:transform:_PATH="'"$dir"'"
+				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
+		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
+		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'enter:become:'"$(__fcd_get_enter_action)" \
+		--bind 'alt-q:become('"$(__fcd_get_dir_alt_q_action "$_fcd_max_depth")"')' \
+		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
+		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' \
+		--bind 'ctrl-n:ignore'
+}
+
+__fcd_launch_drive_fzf() {
+	local toggle_history="$1"
+
+	local drives=""
+	local pos_one=""
+	local p_show_hidden='$P_SHOW_HIDDEN'
+	local p_view_hidden
+	local sync_status=0
+	local footer_msg=""
+	local path_border_pos
+	local initial_header
+
+	[[ $_fcd_path_anchor == "header" ]] && initial_header=" "
+	[[ $_fcd_path_anchor =~ ^(top|bottom)$ ]] && path_border_pos="$_fcd_path_anchor"
+	[[ $_fcd_max_depth -ne 1 ]] && pos_one="pos(1)"
+	if [[ $_fcd_p_show_hidden == "auto" ]]; then
+		p_show_hidden=""
+		sync_status=1
+		p_view_hidden="$_fcd_show_hidden"
+	else
+		p_view_hidden="$_fcd_p_show_hidden"
+	fi
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+
+	drives="$(__fcd_list_drives)"
+	[[ -z $drives ]] && footer_msg="No drives found!"
+
+	builtin printf '%s' "$drives" | $(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
+		${_fcd_height:+ --height "$_fcd_height"} ${_fcd_min_height:+ --min-height "$_fcd_min_height"} --layout="$_fcd_layout" --scheme="path" \
+		--with-nth="1,2" --delimiter=$'\t' --tabstop="1" ${_fcd_wrap:+ --wrap "$_fcd_wrap"} \
+		--border="$_fcd_border" --border-label-pos="$_fcd_path_column${path_border_pos:+:$path_border_pos}" \
+		--header-border="none" --header-label="$toggle_history" --header-first ${initial_header:+ --header "$initial_header"} \
+		--pointer="▌" --scrollbar="▐┃" --no-multi ${_fcd_cycle:+ --cycle} ${_fcd_highlight_line:+ --highlight-line} \
+		--input-border="none" --input-label="" \
+		--list-border="none" --list-label="" \
+		--footer-border="none" ${_fcd_no_input:+ --no-input} \
+		--margin="$_fcd_margin" --padding="$_fcd_padding" --query="$_fcd_query" ${_fcd_no_mouse:+ --no-mouse} \
+		--ellipsis="$_fcd_ellipsis" --info="$_fcd_info" ${_fcd_define_separator:+ --separator "$_fcd_separator"} \
+		--color="label:blue,preview-label:bright-blue,border:bright-black,header:blue" \
+		--preview-window="$_fcd_p_window" \
+		--preview='SELECTED={}
+				SELECTED="${SELECTED##*$'"'\t'"'}"
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
+		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
+		--bind 'resize:transform-preview-label('"$(__fcd_get_preview_label_logic)"')+transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+					PREFIX="${PREFIX%%$SEP*}"
+					_PATH="${FZF_INPUT_LABEL##*$SEP}"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"
+				fi' \
+		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
+		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'left:transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					'"$(__fcd_get_nav_prev_logic)"'
+					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$drives"'\")"
+					else
+						SEP=$'"'\t'"'
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						_PATH=$(command dirname "${FZF_INPUT_LABEL##*$SEP}")
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						FZF_INPUT_LABEL="${BASE_PATH%/}/${_PATH#/}"
+						'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+						printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'right:transform:
+				if [[ -z {} || {} == "." ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					SELECTED={}
+					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					if [[ -z $FZF_INPUT_LABEL ]]; then
+						PREFIX="(${SELECTED%%$SEP*})"
+						BASE_PATH="${SELECTED##*$SEP}"
+						_PATH="/"
+					else
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						_PATH="${FZF_INPUT_LABEL##*$SEP}"
+						_PATH="${_PATH%/}/${SELECTED#/}"
+					fi
+					FZF_INPUT_LABEL="${BASE_PATH%/}/${_PATH#/}"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+					printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'ctrl-h:transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					[[ "'"$sync_status"'" -eq 1 ]] &&	printf "refresh-preview" ||	printf "noop"
+				else
+					'"$(__fcd_rebuild_path)"'
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+					else
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'alt-h:transform:
+				if [[ -z $FZF_INPUT_LABEL && -z {} || "'"$sync_status"'" -eq 1 ]]; then
+					printf "noop"
+				else
+				'"$(__fcd_rebuild_path)"'
+					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
+					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					else
+						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
+					fi
+				fi' \
+		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "%s" "become(printf \"reload\ndrives\n0\n$FZF_HEADER_LABEL\")"
+				else
+					'"$(__fcd_rebuild_path)"'
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					printf "%s" "rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'ctrl-home:transform:if [[ -z $FZF_INPUT_LABEL || ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+					PREFIX="${PREFIX%%$SEP*}"
+					_PATH="/"
+					FZF_INPUT_LABEL="${FZF_INPUT_LABEL%%$'"'\t'"'*}"
+					[[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1,1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*},1"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+					printf "%s" "change-input-label($FZF_INPUT_LABEL$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'alt-home:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					[[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*}"
+					[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+					printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$drives"'\")"
+				fi' \
+		--bind 'ctrl-y:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
+					'"$(__fcd_rebuild_path)"'
+				fi
+				'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
+		--bind 'alt-y:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'enter:become:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_enter_action)" \
+		--bind 'alt-q:'"$(__fcd_get_drive_alt_q_action "$navigation_mode")" \
+		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
+		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
+		--bind 'ctrl-n:ignore'
+}
+
+__fcd_main() {
+	local origin_dir="$PWD"
+	local current_dir="$origin_dir"
+	local out key sel status
+	local nav_history=""
+	local toggle_history=""
+
+	local FZF_DEFAULT_OPTS=''
+	local FZF_DEFAULT_OPTS_FILE=''
+	local FZF_DEFAULT_COMMAND=''
+
+	while true; do
+		if [[ $_fcd_navigation_mode == "dir" ]]; then
+			out=$(__fcd_launch_dir_fzf "$toggle_history" "$current_dir" "$nav_history")
+		else
+			out=$(__fcd_launch_drive_fzf "$toggle_history")
+		fi
+		status=$?
+		[[ $status -ne 0 ]] && return $status
+
+		key="${out%%$'\n'*}"; out="${out#*$'\n'}"
+		sel="${out%%$'\n'*}"; out="${out#*$'\n'}"
+ 		toggle_history="${out#*$'\n'}"
+		_fcd_show_hidden="${toggle_history%%,*}"
+
+		[[ $key == "reload" ]] && continue
+		[[ -z $sel ]] && return 1
+		if [[ $key == "alt-q" ]]; then
+			if [[ $_fcd_navigation_mode == "dir" ]]; then
+				nav_history="${out%%$'\n'*}"
+				current_dir="$sel"
+				_fcd_navigation_mode="toggled_drive"
+			else
+				_fcd_navigation_mode="dir"
+			fi
+			continue
+		fi
+		if [[ $sel == "$origin_dir" ]]; then
+			if [[ $_fcd_out_on_same == "dot" ]]; then
+				builtin printf '%s%b' '.' "$_fcd_eol"
+			elif [[ $_fcd_out_on_same == "current" ]]; then
+				builtin printf '%s%b' "$sel" "$_fcd_eol"
+			fi
+			return 64
+		fi
+		builtin printf '%s%b' "$sel" "$_fcd_eol"
+		break
+	done
+
+	return 0
+}
+
+__fcd_parse_options() {
+	local source="$1"
+	source="${source:+$source: }"
+	shift
+
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			# output
+			--print0) _fcd_eol='\0' ;;
+			--print-current-dot) _fcd_out_on_same="dot" ;;
+			--print-current) _fcd_out_on_same="current" ;;
+
+			# navigation
+			--walker|--walker=*)
+					local walker_value
+					if [[ $1 == *=* ]]; then
+						walker_value="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}walker options required: dir|drive[,[no]follow][,[no]hidden]" >&2; return 2; }
+						shift; walker_value="$1"
+					fi
+					[[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir' or 'drive' should be specified" >&2; return 2; }
+					_fcd_navigation_mode=""
+					IFS=',' read -r -a walker_opts <<< "$walker_value"
+					for opt in "${walker_opts[@]}"; do
+						case "$opt" in
+							dir) _fcd_navigation_mode="dir" ;;
+							drive) _fcd_navigation_mode="drive" ;;
+							hidden) _fcd_show_hidden=1 ;;
+              nohidden) _fcd_show_hidden=0 ;;
+							follow) _fcd_follow_symlink=1 ;;
+              nofollow) _fcd_follow_symlink=0 ;;
+							'') ;;
+							*) builtin printf '%s\n' "${source:-}invalid walker option: $opt" >&2; return 2 ;;
+						esac
+					done
+					[[ -z $_fcd_navigation_mode ]] && { builtin printf '%s\n' "${source:-}at least 'dir' or 'drive' should be specified" >&2; return 2; }
+					;;
+			--walker-root|--walker-root=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_root_dir="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; return 2; }
+						shift; _fcd_root_dir="$1"
+					fi
+					;;
+			--walker-skip|--walker-skip=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_skip_dirs="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}directory names to ignore required" >&2; return 2; }
+						shift; _fcd_skip_dirs="$1"
+					fi
+					;;
+			--max-depth|--max-depth=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_max_depth="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}maximum depth required: MAX_DEPTH" >&2; return 2; }
+						shift; _fcd_max_depth="$1"
+					fi
+					[[ ! $_fcd_max_depth =~ ^[0-9]+$ || $_fcd_max_depth -eq 0 ]] && { builtin printf '%s\n' "${source:-}maximum depth must be a positive integer" >&2; return 2; }
+					;;
+			--no-max-depth) _fcd_max_depth="" ;;
+
+			# sorting
+			--sort)	_fcd_sort=1 ;;
+			--no-sort) _fcd_sort=0 ;;
+			--sort-order|--sort-order=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_sort_order="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}sort order required (asc or desc)" >&2; return 2; }
+						shift; _fcd_sort_order="$1"
+					fi
+					[[ ! "$_fcd_sort_order" =~ ^(asc|desc)$ ]] && { builtin printf '%s\n' "${source:-}invalid sort order (expected: asc or desc)" >&2; return 2; }
+					;;
+
+			# layout / ui
+			--height|--height=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_height="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}height required: [~][-]HEIGHT[%]" >&2; return 2; }
+						shift; _fcd_height="$1"
+					fi
+					;;
+			--min-height|--min-height=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_min_height="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}minimum height required: HEIGHT[+]" >&2; return 2; }
+						shift; _fcd_min_height="$1"
+					fi
+					;;
+			--margin|--margin=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_margin="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}margin required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; return 2; }
+						shift; _fcd_margin="$1"
+					fi
+					;;
+			--padding|--padding=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_padding="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}padding required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; return 2; }
+						shift; _fcd_padding="$1"
+					fi
+					;;
+			--border|--border=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_border="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}border style required" >&2; return 2; }
+						shift; _fcd_border="$1"
+					fi
+					[[ $_fcd_border == "inline" ]] && { builtin printf '%s\n' "${source:-}inline border is not supported for --border" >&2; return 2; }
+					;;
+			--cycle) _fcd_cycle=1 ;;
+			--no-cycle) _fcd_cycle=0 ;;
+			--highlight-line) _fcd_highlight_line=1 ;;
+			--no-highlight-line) _fcd_highlight_line=0 ;;
+			--wrap|--wrap=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_wrap="${1#*=}"
+					else
+						shift; _fcd_wrap="$1"
+					fi
+					[[ -z $_fcd_wrap ]] && { builtin printf '%s\n' "${source:-}wrap mode required (char or word)" >&2; return 2; }
+					;;
+			--no-wrap) _fcd_wrap="" ;;
+			--no-mouse) _fcd_no_mouse=1 ;;
+			--layout|--layout=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_layout="${1#*=}"
+					else
+					[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}layout required (bottom / top / top-list)" >&2; return 2; }
+						shift; _fcd_layout="$1"
+					fi
+					[[ ! "$_fcd_layout" =~ ^(bottom|top|top-list)$ ]] && { builtin printf '%s\n' "${source:-}invalid layout (expected: bottom / top / top-list)" >&2; return 2; }
+					;;
+			--ellipsis|--ellipsis=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_ellipsis="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}ellipsis string required" >&2; return 2; }
+						shift; _fcd_ellipsis="$1"
+					fi
+					;;
+			--path-padding|--path-padding=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_path_padding="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path padding required: PADDING" >&2; return 2; }
+						shift; _fcd_path_padding="$1"
+					fi
+					[[ ! "$_fcd_path_padding" =~ ^[0-9]+$ ]] && { builtin printf '%s\n' "${source:-}path padding must be a non-negative integer" >&2; return 2; }
+					;;
+			--path-truncate|--path-truncate=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_path_truncate="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path truncate required (start or end)" >&2; return 2; }
+						shift; _fcd_path_truncate="$1"
+					fi
+					[[ ! "$_fcd_path_truncate" =~ ^(start|end)$ ]] && { builtin printf '%s\n' "${source:-}invalid path truncate (expected: start or end)" >&2; return 2; }
+					;;
+			--path-position|--path-position=*)
+					local path_pos_value
+					if [[ $1 == *=* ]]; then
+						path_pos_value="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path position required ([N][:top|bottom|header|none])" >&2; return 2; }
+						shift; path_pos_value="$1"
+					fi
+					[[ -z $path_pos_value ]] && { builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2; return 2; }
+					_fcd_path_anchor=""
+					_fcd_path_column=""
+					IFS=':' read -r -a path_pos_opts <<< "$path_pos_value"
+					for opt in "${path_pos_opts[@]}"; do
+						case "$opt" in
+							top|bottom|header|none) _fcd_path_anchor="$opt" ;;
+							'') ;;
+							*)
+								if [[ $opt =~ ^[-+]?[0-9]+$ ]]; then
+									_fcd_path_column="$opt"
+								else
+									builtin printf '%s\n' "${source:-}invalid path position option: $opt" >&2
+									return 2
+								fi
+								;;
+						esac
+					done
+					if [[ -z $_fcd_path_anchor && -z $_fcd_path_column ]]; then
+						builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2
+						return 2
+					fi
+					;;
+			--no-input) _fcd_no_input="disabled" ;;
+			--info|--info=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_info="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}info style required" >&2; return 2; }
+						shift; _fcd_info="$1"
+					fi
+					;;
+			--no-info) _fcd_info="hidden" ;;
+			--separator|--separator=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_separator="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}separator character required" >&2; return 2; }
+						shift; _fcd_separator="$1"
+					fi
+					_fcd_define_separator=1
+					;;
+			--no-separator) _fcd_separator=""; _fcd_define_separator=1 ;;
+
+			# preview
+			--preview-window|--preview-window=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_p_window="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview window layout required" >&2; return 2; }
+						shift; _fcd_p_window="$1"
+					fi
+					;;
+			--preview|--preview=*)
+					local preview_value
+					if [[ $1 == *=* ]]; then
+						preview_value="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview options required [dir][,file][,[no]follow][,[no]sort][,[no]hidden|auto][,asc|desc][,list|tree|grid][,N]" >&2; return 2; }
+						shift; preview_value="$1"
+					fi
+					[[ -z $preview_value ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; return 2; }
+					_fcd_p_show_dirs=0
+					_fcd_p_show_files=0
+					IFS=',' read -r -a preview_opts <<< "$preview_value"
+					for opt in "${preview_opts[@]}"; do
+						case "$opt" in
+              dir) _fcd_p_show_dirs=1 ;;
+              file) _fcd_p_show_files=1 ;;
+              hidden) _fcd_p_show_hidden=1 ;;
+              nohidden) _fcd_p_show_hidden=0 ;;
+              auto) _fcd_p_show_hidden="auto" ;;
+              follow) _fcd_p_follow_symlink=1 ;;
+              nofollow) _fcd_p_follow_symlink=0 ;;
+              sort) _fcd_p_sort=1 ;;
+              nosort) _fcd_p_sort=0 ;;
+              asc|desc) _fcd_p_sort_order="$opt" ;;
+              list|tree|grid) _fcd_p_mode="$opt" ;;
+							'') ;;
+							*) 
+								if [[ $opt =~ ^[0-9]+$ ]]; then
+									_fcd_p_max_depth="$opt"
+								else
+									builtin printf '%s\n' "${source:-}invalid preview option: $opt" >&2
+									return 2
+								fi
+								;;
+						esac
+					done
+					[[ $_fcd_p_show_dirs -eq 0 && $_fcd_p_show_files -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; return 2; }
+					;;
+
+			# tmux
+			--tmux|--tmux=*)
+					local tmux_opts_raw
+					if [[ $1 == *=* ]]; then
+						tmux_opts_raw="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { _fcd_use_tmux=1; shift; continue; }
+						shift; tmux_opts_raw="$1"
+					fi
+					[[ -z "${tmux_opts_raw// /}" ]] && { builtin printf '%s\n' "${source:-}invalid tmux option" >&2; return 2; }
+					shift
+					_fcd_use_tmux=1
+					# "--" can be used to separate fzf-tmux options from fcd options
+          if [[ $tmux_opts_raw == "-- "* || $tmux_opts_raw == *" -- "* ]]; then
+            if [[ $tmux_opts_raw == "-- "* ]]; then
+              local fcd_args_raw="${tmux_opts_raw#-- }"
+            else
+							while IFS= read -r opt; do
+								_fcd_tmux_opts+=("$opt")
+							done < <(xargs printf '%s\n' <<< "${tmux_opts_raw%% -- *}")
+							local fcd_args_raw="${tmux_opts_raw#* -- }"
+            fi
+						if [[ -n "${fcd_args_raw// /}" ]]; then
+							local fcd_args=()
+							while IFS= read -r arg; do
+								fcd_args+=("$arg")
+							done < <(xargs printf '%s\n' <<< "$fcd_args_raw")
+							set -- "${fcd_args[@]}" "$@"
+						fi
+					elif [[ $tmux_opts_raw != "--" ]]; then
+						while IFS= read -r opt; do
+							_fcd_tmux_opts+=("$opt")
+						done < <(xargs printf '%s\n' <<< "$tmux_opts_raw")
+          fi
+					continue
+					;;
+
+			# actions
+			--version) __fcd_version; exit 0 ;;
+			--help) __fcd_help; exit 0 ;;
+
+			--ignore-ctrl-z) _fcd_ignore_ctrl_z=1 ;;
+
+			--query|--query=*)
+					if [[ $1 == *=* ]]; then
+						_fcd_query="${1#*=}"
+					else
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}query string required" >&2; return 2; }
+						shift; _fcd_query="$1"
+					fi
+					;;
+
+			--)	;;
+			*)	builtin printf '%s\n' "${source:-}unknown option: $1" >&2; return 2 ;;
+		esac
+		shift
+	done
+
+	return 0
+}
+
+__fcd_format_drive_size() {
+	local size="$1"
+
+	local ONE_KiB=$((1 << 10))
+	local ONE_MiB=$((1 << 20))
+	local ONE_GiB=$((1 << 30))
+	local ONE_TiB=$((1 << 40))
+	local value unit
+
+	if (( size >= ONE_TiB )); then
+		value=$(( (size * 10) / ONE_TiB ))
+		unit="T"
+	elif (( size >= ONE_GiB )); then
+		value=$(( (size * 10) / ONE_GiB ))
+		unit="G"
+	elif (( size >= ONE_MiB )); then
+		value=$(( (size * 10) / ONE_MiB ))
+		unit="M"
+	else
+		value=$(( (size * 10) / ONE_KiB ))
+		unit="K"
+	fi
+
+	if (( value % 10 == 0 )); then
+		builtin printf '%s' "$((value / 10))$unit"
+	else
+		builtin printf '%s' "$((value / 10)).$((value % 10))$unit"
+	fi
+}
+
+__fcd_list_drives() {
+	local drives=""
+	local system_name=""
+	local system_size=0
+
+	local LABEL NAME SIZE MOUNTPOINT FSTYPE
+	while IFS= read -r line; do
+		[ -z "$line" ] && continue
+		LABEL='' NAME='' SIZE='' MOUNTPOINT='' FSTYPE=''
+
+		[[ $line =~ (^|[[:space:]])LABEL=\"([^\"]*)\" ]]      && LABEL="${BASH_REMATCH[2]}"
+		[[ $line =~ (^|[[:space:]])NAME=\"([^\"]*)\" ]]       && NAME="${BASH_REMATCH[2]}"
+		[[ $line =~ (^|[[:space:]])SIZE=\"([^\"]*)\" ]]       && SIZE="${BASH_REMATCH[2]}"
+		[[ $line =~ (^|[[:space:]])MOUNTPOINT=\"([^\"]*)\" ]] && MOUNTPOINT="${BASH_REMATCH[2]}"
+		[[ $line =~ (^|[[:space:]])FSTYPE=\"([^\"]*)\" ]]     && FSTYPE="${BASH_REMATCH[2]}"
+
+		[ -z "$MOUNTPOINT" ] && continue
+		case "$FSTYPE" in swap|crypt|LVM2_member) continue ;; esac
+
+		case "$MOUNTPOINT" in
+			"/"|"/home"|"/boot"|"/boot/efi"|"/var")
+				[ "$MOUNTPOINT" = "/" ] && system_name="$NAME"
+				system_size=$((system_size + SIZE))
+				;;
+			*)
+				drives+="${LABEL:-Volume}"$'\t'"($NAME) $(__fcd_format_drive_size "$SIZE")"$'\t'"$MOUNTPOINT"$'\n'
+				;;
+		esac
+	done < <(command lsblk -P -b -e 1,7,11,179 -o LABEL,NAME,SIZE,MOUNTPOINT,FSTYPE)
+ 
+	if [ -n "$system_name" ]; then
+		drives="System"$'\t'"($system_name) $(__fcd_format_drive_size "$system_size")"$'\t'"/"$'\n'"$drives"
+	fi
+	builtin printf '%s' "$drives"
+}
+
+__fcd_get_border_style() {
+	local border_style
+
+	if [[ -n $TMUX && $_fcd_use_tmux -eq 1 ]]; then
+		if [[ ${#_fcd_tmux_opts[@]} -eq 0 ]]; then
+			[[ -z $_fcd_path_anchor || $_fcd_path_anchor =~ ^(header|none)$ ]] && border_style="none" || border_style="top"
+		else
+			border_style="top"
+		fi
+	else
+		border_style="top"
+	fi
+
+	builtin printf '%s' "$border_style"
+}
+
+__fcd_version() {
+	builtin printf '%s\n' "fcd $_FCD_VERSION"
+}
+
+__fcd_help() {
+	cat << 'EOF'
+fcd is an interactive directory and drive navigator powered by fzf.
+
+It provides an interactive interface for browsing directories fuzzy search, 
+preview support, configurable navigation, and optional tmux integration.
+
+Project URL: https://github.com/matheus-pacifico/fcd
+Author: Matheus Pacifico
+
+Usage: fcd [options]
+
+  OUTPUT
+    --print0                 Print output delimited by ASCII NUL characters
+    --print-current          Print target directory even if it is the current directory
+    --print-current-dot      Print '.' if target directory is the current directory
+
+  NAVIGATION
+    --walker=OPTS            dir|drive[,[no]follow][,[no]hidden]
+                             (default: dir,follow,nohidden)
+    --walker-root=DIR        Root directory to start navigation from (default: .)
+    --walker-skip=DIRS       Comma-separated list of directory names to skip
+                             (default: .git,node_modules)
+    --max-depth=MAX_DEPTH    Maximum directory traversal depth (default: 1)
+    --no-max-depth           Disable the maximum traversal depth
+
+  SORTING
+    --sort                   Enable sorting (default)
+    --no-sort                Disable sorting
+    --sort-order=ORDER       Sort order [asc|desc] (default: asc)
+
+  LAYOUT/UI
+    --height=[~][-]HEIGHT[%] Display fcd window below the cursor with the given
+                             height instead of using fullscreen.
+                             A negative value is calculated as the terminal height
+                             minus the given value.
+                             If prefixed with '~', fcd will determine the height
+                             according to the input size.
+    --min-height=HEIGHT[+]   Minimum height when --height is given as a percentage.
+                             Add '+' to automatically increase the value
+                             according to the other layout options (default: 10+).
+    --layout=LAYOUT          Choose layout [bottom|top|top-list] (default: top)
+    --margin=MARGIN          Screen margin (TRBL | TB,RL | T,RL,B | T,R,B,L)
+    --padding=PADDING        Padding inside border (TRBL | TB,RL | T,RL,B | T,R,B,L)
+    --border=STYLE           Draw border around finder
+                             [rounded|sharp|bold|block|thinblock|double|dashed|horizontal|vertical|
+                              top|bottom|left|right|line|none] (default: top)
+    --cycle                  Enable cyclic scroll (default)
+    --no-cycle               Disable cyclic scroll
+    --highlight-line         Highlight the whole current line
+    --no-highlight-line      Disable whole line highlighting (default)
+    --wrap=MODE              Enable line wrap (char|word, default: word)
+    --no-wrap                Disable line wrapping
+    --ellipsis=STR           Ellipsis to show when line is truncated (default: '··')
+    --no-mouse               Disable mouse interactions
+
+  PATH DISPLAY
+    --path-position=POS      Configure current path label position
+                             [POSITIVE_INTEGER: columns from left|
+                              NEGATIVE_INTEGER: columns from right][:top|bottom|header|none]
+    --path-padding=N         Padding spaces around path string (default: 1)
+    --path-truncate=MODE     Path truncation strategy [start|end] (default: start)
+
+  INPUT SECTION
+    --no-input               Disable and hide the input section
+    --info=STYLE             Finder info style
+                             [default|right|hidden|inline[-right][:PREFIX]]
+    --no-info                Alias for --info=hidden
+    --separator=STR          Draw horizontal separator on info line using the string
+                             (default: '─' or '-')
+    --no-separator           Hide info line separator
+
+  PREVIEW WINDOW
+    --preview=OPTS           Comma-separated preview settings:
+                             [dir][,file][,[no]follow][,[no]sort][,[no]hidden|auto]
+                             [,asc|desc][,list|tree|grid][,N]
+                             N is max depth (set 0 for unlimited depth)
+                             (default: dir,follow,sort,asc,list,nohidden,1)
+    --preview-window=OPT     Preview window layout (default: nocycle:nohidden:40%:right)
+                             [up|down|left|right|next][,SIZE[%]]
+                             [,[no]wrap[-word]][,[no]cycle][,[no]follow][,[no]info]
+                             [,[no]hidden][,border-STYLE]
+                             [,+SCROLL[OFFSETS][/DENOM]][,~HEADER_LINES]
+                             [,default][,<SIZE_THRESHOLD(ALTERNATIVE_LAYOUT)]
+
+  INTEGRATION
+    --tmux[=OPTS]            Run fcd through fzf-tmux
+                             OPTS are passed directly to fzf-tmux.
+                             Use '--' inside OPTS to separate fzf-tmux flags from fcd flags
+    --ignore-ctrl-z          Disable the Ctrl-Z key binding
+
+  SCRIPTING
+    --query=STR              Start the finder with the given query
+
+  HELP
+    --help                   Show this help message
+    --version                Display version information and exit
+
+  ENVIRONMENT VARIABLES
+    FCD_DEFAULT_OPTS         Default options (e.g. '--layout=bottom --no-sort')
+    FCD_DEFAULT_OPTS_FILE    Location of the file to read default options from
+
+EOF
+}
+
+__fcd_remove_comments() {
+	sed '/^[[:space:]]*#/d'
+}
+
+__fcd_prepare_opts() {
+  builtin printf '%s' "$1" | __fcd_remove_comments | xargs printf '%s\0'
+}
+
+__fcd_resolve_opts() {
+	[[ $_fcd_p_max_depth -le 0 ]] && _fcd_p_max_depth=""
+	[[ $_fcd_cycle -ne 1 ]] && _fcd_cycle=""
+	[[ $_fcd_no_mouse -ne 1 ]] && _fcd_no_mouse=""
+	[[ $_fcd_highlight_line -ne 1 ]] && _fcd_highlight_line=""
+	[[ $_fcd_sort -eq 1 ]] && _fcd_sort="-h" || _fcd_sort=""
+	[[ $_fcd_sort_order == "asc" ]] && _fcd_sort_order="" || _fcd_sort_order="-r"
+	[[ $_fcd_p_sort_order == "asc" ]] && _fcd_p_sort_order="" || _fcd_p_sort_order="-r"
+	[[ $_fcd_follow_symlink -eq 1 ]] && _fcd_follow_symlink="-L" || _fcd_follow_symlink=""
+	[[ -z $_fcd_border ]] && _fcd_border="$(__fcd_get_border_style)"
+	[[ -z $_fcd_path_anchor ]] && _fcd_path_anchor="$(__fcd_get_path_anchor "$_fcd_border" "$_fcd_layout" "$_fcd_height")"
+	[[ -z $_fcd_path_column ]] && _fcd_path_column="$(__fcd_get_path_column "$_fcd_border" "$_fcd_path_anchor")"
+	if [[ $_fcd_path_anchor == "header" ]]; then
+		_fcd_path_padding="0"
+		_fcd_path_truncate="auto"
+		if [[ $_fcd_path_column -eq 1 || $_fcd_path_column -eq 2 ]]; then
+			_fcd_path_column='3'
+		elif [[ $_fcd_path_column -eq -1 ]]; then
+			_fcd_path_column='-2'
+		fi
+	fi
+	_fcd_layout="$(__fcd_get_layout "$_fcd_layout")"
+}
+
+if [[ -n ${FCD_DEFAULT_OPTS-} ]]; then
+	# mapfile -d '' _fcd_args < <(__fcd_prepare_opts "$FCD_DEFAULT_OPTS")
+	_fcd_args=()
+	while IFS= read -r -d '' arg; do
+		_fcd_args+=("$arg")
+	done < <(__fcd_prepare_opts "$FCD_DEFAULT_OPTS")
+	__fcd_parse_options '$FCD_DEFAULT_OPTS' "${_fcd_args[@]}"
+	status=$?
+	unset _fcd_args
+	[[ $status -ne 0 ]] && exit $status
+fi
+if [[ -n ${FCD_DEFAULT_OPTS_FILE-} ]]; then
+	_fcd_opts_file="$(command cat "$FCD_DEFAULT_OPTS_FILE" 2> /dev/null)"
+	# mapfile -d '' _fcd_args < <(__fcd_prepare_opts "$_fcd_opts_file")
+	_fcd_args=()
+	while IFS= read -r -d '' arg; do
+		_fcd_args+=("$arg")
+	done < <(__fcd_prepare_opts "$_fcd_opts_file")
+	__fcd_parse_options "${FCD_DEFAULT_OPTS_FILE}" "${_fcd_args[@]}"
+	status=$?
+	unset _fcd_args _fcd_opts_file
+	[[ $status -ne 0 ]] && exit $status
+fi
+if [[ $# -gt 0 ]]; then
+	__fcd_parse_options 'fcd' "$@"
+	status=$?
+	[[ $status -ne 0 ]] && exit $status
+fi
+
+__fcd_resolve_opts
+
+if [[ ${XDG_SESSION_TYPE-} == "wayland" || -n ${WAYLAND_DISPLAY-} ]] && command -v wl-copy >/dev/null 2>&1; then
+	_fcd_copy_command='wl-copy'
+elif command -v xclip >/dev/null 2>&1; then
+	_fcd_copy_command='xclip -selection clipboard -i'
+elif command -v xsel >/dev/null 2>&1; then
+	_fcd_copy_command='xsel --clipboard --input'
+fi
+
+__fcd_main
