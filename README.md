@@ -1,6 +1,6 @@
 # fcd
 
-An interactive directory navigator powered by `fzf`.
+An interactive directory navigator powered by [fzf](https://github.com/junegunn/fzf).
 
 `fcd` provides a seamless TUI for navigating directories and drives with fuzzy search, live previews, sorting, clipboard integration, navigation history and customizable behavior.
 
@@ -94,6 +94,25 @@ Start with a specific search query:
 fcd --query="project"
 ```
 
+Here's an example of the default mode:
+
+<img width="967" height="625" alt="Image" src="https://github.com/user-attachments/assets/836bd2a8-2331-4129-8166-f9f658323c4e" />
+
+Here's an example of the drive mode:
+
+<img src="https://github.com/user-attachments/assets/6d506bae-7f21-4601-a911-173133a99218" />
+
+<details>
+
+```sh
+fcd --walker=drive \
+    --preview="dir,file,tree,asc,2" \
+    --preview-window="down:55%:border-rounded" \
+    --height=85% --border=dashed
+```
+
+</details>
+
 ### In-Finder Controls
 
 | **Key**                 | **Action**                                  |
@@ -106,7 +125,7 @@ fcd --query="project"
 | `Ctrl-Y`                | Copy target directory path to clipboard     |
 | `Alt-Y`                 | Copy highlighted path to clipboard          |
 | `Ctrl-P`                | Toggle preview window                       |
-| `Ctrl-Home`             | Jump directly to home directory     |
+| `Ctrl-Home`             | Jump directly to home directory             |
 | `Alt-Home`              | Reset navigation back to starting directory |
 | `Ctrl-R`                | Reload current directory or drive list      |
 | `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                      |
@@ -229,8 +248,8 @@ By setting up shell integration, you can use the following key bindings in bash,
 - `ALT-S` - cd into the selected directory
   - The list is generated using `--walker dir,follow,nohidden` option
   - Set `FCD_ALT_S_OPTS` to pass additional options to fcd
-    ```
-    # Print tree structure in the preview window
+    ```sh
+    # Set preview to tree structure
     export FCD_ALT_S_OPTS="
       --walker-skip .git,node_modules,target
       --preview dir,file,tree"
@@ -239,8 +258,8 @@ By setting up shell integration, you can use the following key bindings in bash,
 - `ALT-Q` - cd into the selected drive and/or directory
   - The list is generated using `--walker drive,follow,nohidden` option
   - Set `FCD_ALT_Q_OPTS` to pass additional options to fcd
-    ```
-    # Print tree structure in the preview window
+    ```sh
+    # Set preview to grid structure with no sort
     export FCD_ALT_Q_OPTS="
       --walker-skip .git,node_modules,target
       --preview file,grid,nosort,auto"
@@ -270,7 +289,7 @@ While it may run on macOS or WSL with proper dependencies (GNU coreutils, `fzf`,
 
 ## Acknowledgments
 
-`fcd` adapts the shell integration, installer, and keybinding script patterns from [fzf](https://github.com/junegunn/fzf) to fit its directory navigation workflow.
+`fcd` adapts the shell integration, installer, and keybinding script patterns from fzf to fit its directory navigation workflow.
 
 Special thanks to Junegunn Choi and the `fzf` contributors for creating such outstanding shell tooling and inspiration.
 
