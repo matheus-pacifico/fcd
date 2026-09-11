@@ -1,4 +1,36 @@
 #!/usr/bin/env bash
+#     _____ _____ ____
+#    / ___// ___// __ \
+#   / /__ / /   / / / /
+#  / ___// /__ / /_/ /
+# /_/   /____//_____/
+#
+# URL:         https://github.com/matheus-pacifico/fcd
+# Author:      Matheus Pacifico
+# License:     MIT
+# 
+# Copyright (c) 2026 Matheus Pacifico
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 readonly _FCD_VERSION=0.1.0
 
@@ -478,14 +510,9 @@ __fcd_get_dir_alt_q_action() {
 	builtin printf '%s' "$cmd"
 }
 
-__fcd_get_drive_alt_q_action() {
-	local navigation_mode="$1"
-	local cmd='ignore'
+__fcd_get_drive_alt_s_action() {
+	local cmd='become:printf "alt-s\nempty\n1\n$FZF_HEADER_LABEL"'
 
-	if [[ $navigation_mode == "toggled_drive" ]]; then
-		cmd='become:printf "alt-q\nempty\n1\n$FZF_HEADER_LABEL"'
-	fi
-	
 	builtin printf '%s' "$cmd"
 }
 
@@ -788,7 +815,7 @@ __fcd_launch_drive_fzf() {
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_enter_action)" \
-		--bind 'alt-q:'"$(__fcd_get_drive_alt_q_action "$navigation_mode")" \
+		--bind 'alt-s:'"$(__fcd_get_drive_alt_s_action)" \
 		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
 		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
 		--bind 'ctrl-n:ignore'
@@ -822,13 +849,13 @@ __fcd_main() {
 		[[ $key == "reload" ]] && continue
 		[[ -z $sel ]] && return 1
 		if [[ $key == "alt-q" ]]; then
-			if [[ $_fcd_navigation_mode == "dir" ]]; then
-				nav_history="${out%%$'\n'*}"
-				current_dir="$sel"
-				_fcd_navigation_mode="toggled_drive"
-			else
-				_fcd_navigation_mode="dir"
-			fi
+			nav_history="${out%%$'\n'*}"
+			current_dir="$sel"
+			_fcd_navigation_mode="drive"
+			continue
+		fi
+		if [[ $key == "alt-s" ]]; then
+			_fcd_navigation_mode="dir"
 			continue
 		fi
 		if [[ $sel == "$origin_dir" ]]; then
@@ -837,6 +864,7 @@ __fcd_main() {
 			elif [[ $_fcd_out_on_same == "current" ]]; then
 				builtin printf '%s%b' "$sel" "$_fcd_eol"
 			fi
+			# Return EX_USAGE (64) to signal a no-op when selecting the current directory
 			return 64
 		fi
 		builtin printf '%s%b' "$sel" "$_fcd_eol"
@@ -1400,7 +1428,6 @@ __fcd_resolve_opts() {
 }
 
 if [[ -n ${FCD_DEFAULT_OPTS-} ]]; then
-	# mapfile -d '' _fcd_args < <(__fcd_prepare_opts "$FCD_DEFAULT_OPTS")
 	_fcd_args=()
 	while IFS= read -r -d '' arg; do
 		_fcd_args+=("$arg")
@@ -1412,7 +1439,6 @@ if [[ -n ${FCD_DEFAULT_OPTS-} ]]; then
 fi
 if [[ -n ${FCD_DEFAULT_OPTS_FILE-} ]]; then
 	_fcd_opts_file="$(command cat "$FCD_DEFAULT_OPTS_FILE" 2> /dev/null)"
-	# mapfile -d '' _fcd_args < <(__fcd_prepare_opts "$_fcd_opts_file")
 	_fcd_args=()
 	while IFS= read -r -d '' arg; do
 		_fcd_args+=("$arg")
