@@ -174,10 +174,10 @@ __fcd_get_list_dir_logic () {
 		cmd='builtin printf ""'
 	elif [[ -n $show_hidden ]]; then
 		if [[ -n $dir ]]; then
-			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path "'"${dir%/}"'/.*" -o'
+			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path "'"${dir%/}"'/.*" -o -path "'"${dir%/}"'/*/.?*" -o'
 			cmd='builtin printf ".\n" && command find '"${follow_symlink:-}"' "'$dir'" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" "")"' -fstype "sysfs" -o -fstype "devfs" -o -fstype "devtmpfs" -o -fstype "proc" \) -prune -o -type d -printf "%P\n" '"${sort:+ | sort $sort $sort_order}"''
 		else
-			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path \"${FZF_INPUT_LABEL%/}/.*\" -o'
+			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o'
 			cmd='builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"
 		fi
 	else
@@ -185,7 +185,7 @@ __fcd_get_list_dir_logic () {
 		cmd='if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
 			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -false -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
 		else
-			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
 		fi'
 	fi
 
@@ -377,7 +377,7 @@ __fcd_get_preview_command() {
 	else
 		cmd='command find '"${follow_symlink:+-L}"' "$full_path"'
 		[[ $sort -eq 1 ]] && sort="-h" || sort=""
-		[[ $show_hidden -eq 0 ]] && show_hidden="-path \"\${full_path%/}/.*\"" || show_hidden="-false"
+		[[ $show_hidden -eq 0 ]] && show_hidden="-path \"\${full_path%/}/.*\" -o -path \"\${full_path%/}/*/.?*\"" || show_hidden="-false"
     if [[ $show_dirs -eq 0 ]]; then
 			args="-o -type f -printf '%P\n'"
 		else
