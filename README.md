@@ -115,20 +115,23 @@ fcd --walker=drive \
 
 ### In-Finder Controls
 
-| **Key**                 | **Action**                                  |
-| ----------------------- | ------------------------------------------- |
-| `Enter`                 | Select the highlighted directory and exit   |
-| `Left Arrow`            | Navigate to parent directory                |
-| `Right Arrow`           | Open highlighted directory                  |
-| `Ctrl-H`                | Toggle hidden directories                   |
-| `Alt-H`                 | Toggle hidden directories/files in preview  |
-| `Ctrl-Y`                | Copy target directory path to clipboard     |
-| `Alt-Y`                 | Copy highlighted path to clipboard          |
-| `Ctrl-P`                | Toggle preview window                       |
-| `Ctrl-Home`             | Jump directly to home directory             |
-| `Alt-Home`              | Reset navigation back to starting directory |
-| `Ctrl-R`                | Reload current directory or drive list      |
-| `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                      |
+| **Key**                 | **Action**                                         |
+| ----------------------- | -------------------------------------------------- |
+| `Enter`                 | Select the highlighted directory and exit          |
+| `Left Arrow`            | Navigate to parent directory                       |
+| `Alt-Left`              | Navigate back multiple directory levels in history |
+| `Right Arrow`           | Open highlighted directory                         |
+| `Ctrl-H`                | Toggle hidden directories                          |
+| `Alt-H`                 | Toggle hidden directories/files in preview         |
+| `Ctrl-Y`                | Copy target directory path to clipboard            |
+| `Alt-Y`                 | Copy highlighted path to clipboard                 |
+| `Ctrl-P`                | Toggle preview window                              |
+| `Ctrl-Home`             | Jump directly to home directory                    |
+| `Alt-Home`              | Reset navigation back to starting directory        |
+| `Ctrl-R`                | Reload current directory or drive list             |
+| `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                             |
+
+> **Note:** Most built-in `fzf` keybindings are supported, such as `Ctrl-J` / `Ctrl-K` for item selection, `Shift-Up` / `Shift-Down` for preview scrolling.
 
 ## Configuration & Options
 

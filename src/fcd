@@ -469,7 +469,8 @@ __fcd_get_nav_pos_logic() {
 }
 
 __fcd_get_nav_prev_logic() {
-	local cmd='[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*}" || FZF_LIST_LABEL=""'
+	local cmd='[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*}" || FZF_LIST_LABEL=""
+	FZF_LIST_LABEL="${FZF_LIST_LABEL%p}"'
 
 	builtin printf '%s' "$cmd"
 }
@@ -480,15 +481,15 @@ __fcd_get_nav_next_logic() {
 
 	if [[ $max_depth -eq 1 ]]; then
 		cmd="$cmd"'
-		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position,1" || FZF_LIST_LABEL="$current_position,1"'
+		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p,1" || FZF_LIST_LABEL="${current_position}p,1"'
 	else
 		cmd="$cmd"'
 		if [[ -z $FZF_INPUT_LABEL ]]; then
-			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position,1" || FZF_LIST_LABEL="$current_position,1"
+			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p,1" || FZF_LIST_LABEL="${current_position}p,1"
 		else
 			bars_only="${SELECTED//[^\/]/}"
 			positions="${bars_only//\//,1}"
-			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$current_position${positions:-},1" || FZF_LIST_LABEL="${current_position}${positions:-},1"
+			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p${positions:-},1" || FZF_LIST_LABEL="${current_position}p${positions:-},1"
 		fi'
 	fi
 
@@ -584,6 +585,20 @@ __fcd_launch_dir_fzf() {
 				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' \
 		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
 		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'alt-left:transform:
+				if [[ $FZF_LIST_LABEL != *p* ]]; then
+					printf "noop"
+				else
+					PREFIX_PART="${FZF_LIST_LABEL%p*}"
+					LEVELS_UP=$(((${#FZF_LIST_LABEL} - ${#PREFIX_PART} - 1) / 2))
+					(( LEVELS_UP == 0 )) && LEVELS_UP=1
+					FZF_LIST_LABEL="${FZF_LIST_LABEL%p*}"
+					_PATH="$FZF_INPUT_LABEL"
+					for ((i=0; i<LEVELS_UP; i++)); do _PATH="$(command dirname "$_PATH")"; done
+					FZF_INPUT_LABEL="$_PATH"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					printf "%s" "change-input-label($_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
 		--bind 'left:transform:
 				if [[ $FZF_INPUT_LABEL == "/" ]]; then
 					printf "noop"
@@ -709,6 +724,30 @@ __fcd_launch_drive_fzf() {
 				fi' \
 		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
 		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'alt-left:transform:
+				if [[ $FZF_LIST_LABEL != *p* ]]; then
+					printf "noop"
+				else
+					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+						'"$(__fcd_get_nav_prev_logic)"'
+						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$drives"'\")"
+					else
+						PREFIX_PART="${FZF_LIST_LABEL%p*}"
+						LEVELS_UP=$(((${#FZF_LIST_LABEL} - ${#PREFIX_PART} - 1) / 2))
+						(( LEVELS_UP == 0 )) && LEVELS_UP=1
+						FZF_LIST_LABEL="${FZF_LIST_LABEL%p*}"
+						SEP=$'"'\t'"'
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						_PATH="${FZF_INPUT_LABEL##*$SEP}"
+						for ((i=0; i<LEVELS_UP; i++)); do _PATH="$(command dirname "$_PATH")"; done
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						FZF_INPUT_LABEL="${BASE_PATH%/}/${_PATH#/}"
+						'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+						printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
 		--bind 'left:transform:
 				if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "noop"
