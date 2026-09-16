@@ -71,6 +71,7 @@ _fcd_p_sort=1
 _fcd_p_sort_order="asc"
 _fcd_p_mode="list"
 _fcd_p_max_depth="1"
+_fcd_git_info=0
 _fcd_use_tmux=0
 _fcd_tmux_opts=()
 _fcd_ignore_ctrl_z=""
@@ -136,7 +137,7 @@ __fcd_colorize() {
     *)      code='\x1b[m'   ;; # Default/Clear
   esac
 
-  printf '%b%s%b' "$code" "$text" '\x1b[m'
+  builtin printf '%b%s%b' "$code" "$text" '\x1b[m'
 }
 
 __fcd_make_toast() {
@@ -156,7 +157,7 @@ __fcd_make_toast() {
 	esac
 	[[ $sleep_time -ne 0 ]] && toast="$toast+bg-transform-footer(sleep $sleep_time)"
 
-	printf '%s' "$toast"
+	builtin printf '%s' "$toast"
 }
 
 __fcd_get_list_dir_logic () {
@@ -279,9 +280,20 @@ __fcd_get_go_to_logic() {
 }
 
 __fcd_get_preview_label_logic() {
-	local cmd='selected={}
+	local git_info="$1"
+	local cmd
+	
+	if (( git_info == 1 )); then
+		git_info='git_info="$(git -C "${FZF_INPUT_LABEL%/}/$selected" symbolic-ref --short HEAD 2>/dev/null || git -C "${FZF_INPUT_LABEL%/}/$selected" rev-parse --verify --short HEAD 2>/dev/null)"
+		[[ -n $git_info ]] && selected+=" $(printf "%b%s%b" "\x1b[32m" "[${git_info}]" "\x1b[m")"'
+	else
+		git_info=''
+	fi
+
+	cmd='selected={}
 	if [[ -n $selected && $selected != "." ]]; then
 		selected="${selected%%$'"'\t'"'*}"
+		'"$git_info"'
 		max="$FZF_PREVIEW_COLUMNS"
 		label_length="${#selected}"
 		if (( label_length -le 0 )); then
@@ -580,11 +592,11 @@ __fcd_launch_dir_fzf() {
 		--bind 'start:+transform:_PATH="$FZF_INPUT_LABEL"
 				'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
 				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' ${not_a_dir:+ --bind 'start:+transform: printf "%s" "'"$(__fcd_make_toast "Directory not found!" LONG "red")"'"'} \
-		--bind 'resize:transform-preview-label('"$(__fcd_get_preview_label_logic)"')+transform:_PATH="$FZF_INPUT_LABEL"
+		--bind 'resize:transform-preview-label('"$(__fcd_get_preview_label_logic "$_fcd_git_info")"')+transform:_PATH="$FZF_INPUT_LABEL"
 				'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
 				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' \
 		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
-		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
 		--bind 'alt-left:transform:
 				if [[ $FZF_LIST_LABEL != *p* ]]; then
 					printf "noop"
@@ -620,8 +632,8 @@ __fcd_launch_dir_fzf() {
 					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
 					printf "%s" "change-input-label($_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
 				fi' \
-		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
-		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
+		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
 		--bind 'ctrl-h:transform:
 				if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "noop"
@@ -711,7 +723,8 @@ __fcd_launch_drive_fzf() {
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
 		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
-		--bind 'resize:transform-preview-label('"$(__fcd_get_preview_label_logic)"')+transform:
+		--bind 'resize:transform-preview-label('"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")"')+transform:
 				if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "noop"
 				else
@@ -723,7 +736,8 @@ __fcd_launch_drive_fzf() {
 					printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"
 				fi' \
 		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
-		--bind 'focus:transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'focus:transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
 		--bind 'alt-left:transform:
 				if [[ $FZF_LIST_LABEL != *p* ]]; then
 					printf "noop"
@@ -789,8 +803,10 @@ __fcd_launch_drive_fzf() {
 					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
 					printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
 				fi' \
-		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
-		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_get_preview_label_logic)" \
+		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
+		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
 		--bind 'ctrl-h:transform:
 				if [[ -z $FZF_INPUT_LABEL ]]; then
 					[[ "'"$sync_status"'" -eq 1 ]] &&	printf "refresh-preview" ||	printf "noop"
@@ -1219,6 +1235,10 @@ __fcd_parse_options() {
 					continue
 					;;
 
+			# git integration
+			--git) _fcd_git_info=1;;
+			--no-git) _fcd_git_info=0;;
+
 			# actions
 			--version) __fcd_version; exit 0 ;;
 			--help) __fcd_help; exit 0 ;;
@@ -1419,6 +1439,8 @@ Usage: fcd [options]
                              OPTS are passed directly to fzf-tmux.
                              Use '--' inside OPTS to separate fzf-tmux flags from fcd flags
     --ignore-ctrl-z          Disable the Ctrl-Z key binding
+    --git                    Enable Git info in preview label
+    --no-git                 Disable Git info in preview label
 
   SCRIPTING
     --query=STR              Start the finder with the given query
