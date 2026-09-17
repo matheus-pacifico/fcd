@@ -5,7 +5,7 @@
 
 set -u
 
-version=0.1.0
+version=1.0.0
 key_bindings=
 update_config=2
 shells="bash zsh fish nushell"
