@@ -208,7 +208,7 @@ __fcd_get_path_location_build_logic() {
 	if (( label_length -le 0 )); then
 		path_location=""
 	elif (( label_length + '"$((padding * 2))"' > max )); then
-		cut=$((max - '"${#ellipsis}"' - '"$((padding * 2))"'))
+		cut=$((max - ${#PREFIX} - ${#SEP} - '"${#ellipsis}"' - '"$((padding * 2))"'))
 		(( cut < 1 )) && cut=1
 		if [[ "'"$truncate"'" == "start" ]]; then
 			path_location="${padding:-}${PREFIX:-}${SEP:-}'"${ellipsis:-}"'${_PATH: -cut}${padding:-}"
