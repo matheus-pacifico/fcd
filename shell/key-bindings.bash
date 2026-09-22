@@ -8,6 +8,8 @@
 # - $FCD_ALT_S_OPTS
 # - $FCD_ALT_Q_COMMAND
 # - $FCD_ALT_Q_OPTS
+# - $FCD_ALT_N_COMMAND
+# - $FCD_ALT_N_OPTS
 #
 # Adapted from fzf shell integration:
 # https://github.com/junegunn/fzf
@@ -48,6 +50,16 @@ __fcd_drive__() {
   ) && printf 'builtin cd -- %q' "$(builtin unset CDPATH && builtin cd -- "$dir" && builtin pwd)"
 }
 
+__fcd_bookmark__() {
+  local dir
+  local tmux_opts
+  tmux_opts="$(__fcd_tmux_opts)"
+  dir=$(
+    FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=bookmark,follow,nohidden" "${FCD_ALT_N_OPTS-}") \
+      FCD_DEFAULT_OPTS_FILE='' command fcd ${tmux_opts:+"$tmux_opts"}
+  ) && printf 'builtin cd -- %q' "$(builtin unset CDPATH && builtin cd -- "$dir" && builtin pwd)"
+}
+
 # Required to refresh the prompt after fcd
 bind -m emacs-standard '"\C-\e(": redraw-current-line'
 
@@ -67,6 +79,13 @@ if [[ ${FCD_ALT_Q_COMMAND-x} != "" ]]; then
   bind -m emacs-standard '"\eq": " \C-b\C-k \C-u`__fcd_drive__`\e\C-e\C-\e(\C-m\C-y\C-h\e \C-y\ey\C-x\C-x\C-d\C-y\ey\C-_"'
   bind -m vi-command '"\eq": "\C-z\eq\C-z"'
   bind -m vi-insert '"\eq": "\C-z\eq\C-z"'
+fi
+
+# ALT-N - cd into the selected bookmarked directory
+if [[ ${FCD_ALT_N_COMMAND-x} != "" ]]; then
+  bind -m emacs-standard '"\en": " \C-b\C-k \C-u`__fcd_bookmark__`\e\C-e\C-\e(\C-m\C-y\C-h\e \C-y\ey\C-x\C-x\C-d\C-y\ey\C-_"'
+  bind -m vi-command '"\en": "\C-z\en\C-z"'
+  bind -m vi-insert '"\en": "\C-z\en\C-z"'
 fi
 
 fi

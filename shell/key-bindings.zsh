@@ -8,6 +8,8 @@
 # - $FCD_ALT_S_OPTS
 # - $FCD_ALT_Q_COMMAND
 # - $FCD_ALT_Q_OPTS
+# - $FCD_ALT_N_COMMAND
+# - $FCD_ALT_N_OPTS
 #
 # Adapted from fzf shell integration:
 # https://github.com/junegunn/fzf
@@ -103,6 +105,35 @@ if [[ "${FCD_ALT_Q_COMMAND-x}" != "" ]]; then
   bindkey -M emacs '\eq' fcd-drives-widget
   bindkey -M vicmd '\eq' fcd-drives-widget
   bindkey -M viins '\eq' fcd-drives-widget
+fi
+
+# ALT-N - cd into the selected bookmarked directory
+fcd-bookmarks-widget() {
+  setopt localoptions pipefail no_aliases 2> /dev/null
+	local tmux_opts
+  tmux_opts="$(__fcd_tmux_opts)"
+  local dir="$(
+    FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=bookmark,follow,nohidden" "${FCD_ALT_N_OPTS-}") \
+		FCD_DEFAULT_OPTS_FILE='' \
+		command fcd ${tmux_opts:+"$tmux_opts"})"
+  if [[ -z "$dir" ]]; then
+	  zle redisplay
+	  return 0
+	fi
+  dir=$(builtin cd -q >/dev/null -- "${dir}" && echo "${PWD}" || echo "${dir}")
+	zle push-line # Clear buffer. Auto-restored on next prompt.
+	BUFFER="builtin cd -- ${(q)dir}"
+	zle accept-line
+	local ret=$?
+	unset dir # ensure this doesn't end up appearing in prompt expansion
+	zle reset-prompt
+	return $ret
+}
+if [[ "${FCD_ALT_N_COMMAND-x}" != "" ]]; then
+  zle     -N             fcd-bookmarks-widget
+  bindkey -M emacs '\en' fcd-bookmarks-widget
+  bindkey -M vicmd '\en' fcd-bookmarks-widget
+  bindkey -M viins '\en' fcd-bookmarks-widget
 fi
 fi
 

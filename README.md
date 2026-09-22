@@ -7,10 +7,11 @@ An interactive directory navigator powered by [fzf](https://github.com/junegunn/
 ## Key Features
 
 - **Fuzzy Search Navigation:** Fast folder traversal powered by `fzf`.
-- **Dual Walker Support:** Easily switch between standard directory browsing and full system drive/partition selection.
+- **Multi-Walker Support:** Seamlessly switch between standard directory browsing, full system drive/partition selection, and saved bookmarks.
 - **Dynamic Previews:** Flexible preview window supporting `tree`, `list`, or `grid` modes with adjustable search depth and hidden item toggles.
 - **Clipboard Integration:** Instant path copying (`wl-copy`, `xclip`, `xsel`).
 - **Path Truncation:** Smart header/footer path position formatting with customizable alignment and truncation.
+- **Directory Bookmarking:** Quick saving, browsing, and deleting of favorite locations.
 - **Tmux Ready:** Native floating pane support via `fzf-tmux`.
 
 ## Installation
@@ -96,11 +97,11 @@ fcd --query="project"
 
 Here's an example of the default mode:
 
-<img width="967" height="625" alt="Image" src="https://github.com/user-attachments/assets/836bd2a8-2331-4129-8166-f9f658323c4e" />
+<img src="https://github.com/user-attachments/assets/836bd2a8-2331-4129-8166-f9f658323c4e"/>
 
 Here's an example of the drive mode:
 
-<img src="https://github.com/user-attachments/assets/6d506bae-7f21-4601-a911-173133a99218" />
+<img src="https://github.com/user-attachments/assets/6d506bae-7f21-4601-a911-173133a99218"/>
 
 <details>
 
@@ -113,6 +114,21 @@ fcd --walker=drive \
 
 </details>
 
+Here's an example of the bookmark mode:
+
+<img src="https://github.com/user-attachments/assets/2491d135-51a7-4bc5-b68b-25c8405347e5"/>
+
+<details>
+
+```sh
+fcd --walker=bookmark \
+    --preview="dir,grid" \
+    --preview-window="up:45%:border-rounded" \
+    --height=85% --border=bold --layout=bottom
+```
+
+</details>
+
 ### In-Finder Controls
 
 | **Key**                 | **Action**                                         |
@@ -121,6 +137,11 @@ fcd --walker=drive \
 | `Left Arrow`            | Navigate to parent directory                       |
 | `Alt-Left`              | Navigate back multiple directory levels in history |
 | `Right Arrow`           | Open highlighted directory                         |
+| `Alt-S`                 | Switch to standard directory browsing mode         |
+| `Alt-Q`                 | Switch to drive selection mode                     |
+| `Alt-N`                 | Switch to saved bookmarks mode                     |
+| `Ctrl-N`                | Bookmark currently selected path                   |
+| `Shift-Delete`          | Delete highlighted bookmark (in bookmark mode)     |
 | `Ctrl-H`                | Toggle hidden directories                          |
 | `Alt-H`                 | Toggle hidden directories/files in preview         |
 | `Ctrl-Y`                | Copy target directory path to clipboard            |
@@ -128,7 +149,7 @@ fcd --walker=drive \
 | `Ctrl-P`                | Toggle preview window                              |
 | `Ctrl-Home`             | Jump directly to home directory                    |
 | `Alt-Home`              | Reset navigation back to starting directory        |
-| `Ctrl-R`                | Reload current directory or drive list             |
+| `Ctrl-R`                | Reload current directory, drive or bookmark list   |
 | `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                             |
 
 > **Note:** Most built-in `fzf` keybindings are supported, such as `Ctrl-J` / `Ctrl-K` for item selection, `Shift-Up` / `Shift-Down` for preview scrolling.
@@ -156,9 +177,25 @@ The traversal mode can be configured with `--walker`:
 ```sh
 fcd --walker=dir
 fcd --walker=drive
+fcd --walker=bookmark
 ```
 
 Additional options control symbolic-link handling and hidden directories.
+
+### Bookmarks
+
+`fcd` includes built-in directory bookmarking for fast jumping to frequently used locations.
+
+- **Storage Location:** Bookmarks are stored in `name=path` format. By default, `fcd` resolves the file in the following order:
+  1. `$FCD_BOOKMARKS_FILE` (if set)
+  2. `$XDG_CONFIG_HOME/fcd/bookmarks`
+  3. `~/.config/fcd/bookmarks`
+  4. `~/.fcd/bookmarks`
+  
+- **Interactive Management:**
+  - Press `Ctrl-N` in `fcd` to bookmark the selected path.
+  
+  - Press `Shift-Delete` while browsing bookmarks to remove the highlighted bookmark.
 
 ### Preview
 
@@ -170,7 +207,7 @@ For example, to use a deeper preview:
 fcd --preview=dir,follow,sort,asc,list,3
 ```
 
-The final numeric value specifies the maximum preview depth. A value of `0` means unlimited depth.
+The numeric value specifies the maximum preview depth. A value of `0` means unlimited depth.
 
 Preview behavior can also be configured for:
 
@@ -181,6 +218,13 @@ Preview behavior can also be configured for:
 - sorting
 - ascending or descending order
 - list, tree, or grid display
+
+You can also toggle Git status information in the preview label:
+
+```sh
+fcd --git       # Enable Git info in preview label
+fcd --no-git    # Disable Git info in preview label
+```
 
 The preview window itself can be positioned and configured using `--preview-window`.
 
@@ -268,8 +312,31 @@ By setting up shell integration, you can use the following key bindings in bash,
       --preview file,grid,nosort,auto"
     ```
   - Can be disabled by setting `FCD_ALT_Q_COMMAND` to an empty string when sourcing the script
+- `ALT-N` - cd into the selected bookmarked directory
+  - The list is generated using `--walker bookmark,follow,nohidden` option
+  - Set `FCD_ALT_N_OPTS` to pass additional options to fcd
+    ```sh
+    # Set preview to list structure with directories and files
+    export FCD_ALT_N_OPTS="
+      --walker-skip .git,node_modules,target
+      --preview dir,file,list,hidden"
+    ```
+  - Can be disabled by setting `FCD_ALT_N_COMMAND` to an empty string when sourcing the script
 
-Display modes for these bindings can be separately configured via `FCD_{ALT_S,ALT_Q}_OPTS` or globally via `FCD_DEFAULT_OPTS`. (e.g. `FCD_ALT_Q_OPTS='--layout top-list --height 60% --border rounded'`)
+Display modes for these bindings can be separately configured via `FCD_{ALT_S,ALT_Q,ALT_N}_OPTS` or globally via `FCD_DEFAULT_OPTS`. (e.g. `FCD_ALT_Q_OPTS='--layout top-list --height 60% --border rounded'`)
+
+## Environment variables
+
+- `FCD_DEFAULT_OPTS`
+    - Default options
+    - e.g. `export FCD_DEFAULT_OPTS="--layout=bottom --git"`
+- `FCD_DEFAULT_OPTS_FILE`
+    - If you prefer to manage default options in a file, set this variable to
+      point to the location of the file
+    - e.g. `export FCD_DEFAULT_OPTS_FILE=~/.fcdrc`
+- `FCD_BOOKMARKS_FILE`
+    - Location of the file to store bookmarks.
+    - e.g. `export FCD_BOOKMARKS_FILE=~/.config/fcd/bookmarks`
 
 ## Why Pure Bash?
 

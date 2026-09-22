@@ -8,6 +8,8 @@
 # - $FCD_ALT_S_OPTS
 # - $FCD_ALT_Q_COMMAND
 # - $FCD_ALT_Q_OPTS
+# - $FCD_ALT_N_COMMAND
+# - $FCD_ALT_N_OPTS
 #
 # Adapted from fzf shell integration:
 # https://github.com/junegunn/fzf
@@ -144,6 +146,27 @@ function fcd_key_bindings
 
     commandline -f repaint
   end
+  
+  function fcd-bookmarks-widget -d "Change to bookmarked directory"
+    set -l commandline (__fcd_parse_commandline)
+    set -lx dir $commandline[1]
+    set -l fcd_query $commandline[2]
+    set -l prefix $commandline[3]
+		set -l tmux_opts (__fcd_tmux_opts)
+
+		set -lx FCD_DEFAULT_OPTS (__fcd_defaults "$tmux_opts" \
+      "--walker=bookmark,follow,nohidden" \
+      "$FCD_ALT_N_OPTS --print0")
+
+    set -lx FCD_DEFAULT_OPTS_FILE
+
+    if set -l result (command fcd | string split0)
+      cd -- $result
+      commandline -rt -- $prefix
+    end
+
+    commandline -f repaint
+  end
 
   if not set -q FCD_ALT_S_COMMAND; or test -n "$FCD_ALT_S_COMMAND"
     bind \es fcd-widget
@@ -153,6 +176,11 @@ function fcd_key_bindings
   if not set -q FCD_ALT_Q_COMMAND; or test -n "$FCD_ALT_Q_COMMAND"
     bind \eq fcd-drives-widget
     bind -M insert \eq fcd-drives-widget
+  end
+  
+  if not set -q FCD_ALT_N_COMMAND; or test -n "$FCD_ALT_N_COMMAND"
+    bind \en fcd-bookmarks-widget
+    bind -M insert \en fcd-bookmarks-widget
   end
 
 end

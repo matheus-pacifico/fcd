@@ -508,9 +508,10 @@ __fcd_get_nav_next_logic() {
 	builtin printf '%s' "$cmd"
 }
 
-__fcd_get_dir_alt_q_action() {
-	local max_depth="$1"
-	local cmd='printf "alt-q\n$FZF_INPUT_LABEL\n${FZF_LIST_LABEL:-1}\n$FZF_HEADER_LABEL"'
+__fcd_get_dir_toggle_action() {
+	local key="$1"
+	local max_depth="$2"
+	local cmd='printf "'"$key"'\n$FZF_INPUT_LABEL\n${FZF_LIST_LABEL:-1}\n$FZF_HEADER_LABEL"'
 
 	if [[ $max_depth -eq 1 ]]; then
 		cmd='current_position={n}
@@ -523,10 +524,88 @@ __fcd_get_dir_alt_q_action() {
 	builtin printf '%s' "$cmd"
 }
 
-__fcd_get_drive_alt_s_action() {
+__fcd_get_alt_s_action() {
 	local cmd='become:printf "alt-s\nempty\n1\n$FZF_HEADER_LABEL"'
 
 	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_drive_alt_n_action() {
+	local cmd='become:printf "alt-n\nempty\n1\n$FZF_HEADER_LABEL"'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_bookmark_alt_q_action() {
+	local cmd='become:printf "alt-q\nempty\n1\n$FZF_HEADER_LABEL"'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_add_bookmark_logic() {
+	local success="green"
+	local failure="red"
+	local cmd
+
+	cmd='selected={}
+	if [[ $selected == "." ]]; then
+		bookmark_path="$FZF_INPUT_LABEL"
+	else
+		selected="${selected##*$'"'\t'"'}"
+		bookmark_path="${FZF_INPUT_LABEL%/}/${selected#/}"
+	fi
+	
+	if [[ $bookmark_path != "/" ]]; then
+		bookmark_path="${bookmark_path%/}"
+	fi
+	name="${bookmark_path##*/}"
+
+	if ! printf "%s=%s\n" "${name:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'" 2>/dev/null; then
+    if mkdir -p "$(dirname "$FCD_BOOKMARKS_FILE")" && printf "%s=%s\n" "${name:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'"; then
+			printf "%s" "'"$(__fcd_make_toast "Bookmark saved successfully!" SHORT "$success")"'"
+    else
+      printf "%s" "'"$(__fcd_make_toast "Failed to save bookmark!" MEDIUM "$failure")"'"
+    fi
+	else
+		printf "%s" "'"$(__fcd_make_toast "Bookmark saved successfully!" SHORT "$success")"'"
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_delete_bookmark_logic() {
+	local success="green"
+	local failure="red"
+	local cmd
+	
+	cmd='if [[ -n $FZF_INPUT_LABEL || -z {} ]]; then
+		printf "noop"
+	else
+		selected={}
+		current_position=$(({n} + 1))
+		bookmark="${selected%%$'"'\t'"'*}=${selected##*$'"'\t'"'}"
+
+		tmp="$(mktemp)"
+		count=1
+
+		while IFS= read -r line || [[ -n "$line" ]]; do
+			if [[ $line != "$bookmark" || $count != "$current_position" ]]; then
+				builtin printf "%s\n" "$line"
+			else
+				excluded=1
+			fi
+			[[ $line == *=* ]] && ((count++))
+		done < "'"$FCD_BOOKMARKS_FILE"'" > "$tmp"
+
+    if [[ -f "$tmp" && ${excluded:-0} == 1 ]] && mv "$tmp" "'"$FCD_BOOKMARKS_FILE"'"; then
+			printf "%s" "exclude+'"$(__fcd_make_toast "Bookmark deleted successfully!" SHORT "$success")"'"
+    else
+      command rm -f "$tmp"
+      printf "%s" "'"$(__fcd_make_toast "Failed to delete bookmark!" MEDIUM "$failure")"'"
+    fi
+	fi'
+
+	builtin printf "%s" "$cmd"
 }
 
 __fcd_get_info_command() {
@@ -672,10 +751,11 @@ __fcd_launch_dir_fzf() {
 		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
 		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
 		--bind 'enter:become:'"$(__fcd_get_enter_action)" \
-		--bind 'alt-q:become('"$(__fcd_get_dir_alt_q_action "$_fcd_max_depth")"')' \
+		--bind 'alt-q:become('"$(__fcd_get_dir_toggle_action 'alt-q' "$_fcd_max_depth")"')' \
+		--bind 'alt-n:become('"$(__fcd_get_dir_toggle_action 'alt-n' "$_fcd_max_depth")"')' \
 		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
 		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' \
-		--bind 'ctrl-n:ignore'
+		--bind 'ctrl-n:transform:'"$(__fcd_get_add_bookmark_logic)"
 }
 
 __fcd_launch_drive_fzf() {
@@ -870,10 +950,233 @@ __fcd_launch_drive_fzf() {
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_enter_action)" \
-		--bind 'alt-s:'"$(__fcd_get_drive_alt_s_action)" \
+		--bind 'alt-s:'"$(__fcd_get_alt_s_action)" \
+		--bind 'alt-n:'"$(__fcd_get_drive_alt_n_action)" \
 		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
 		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
-		--bind 'ctrl-n:ignore'
+		--bind 'ctrl-n:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
+					'"$(__fcd_rebuild_path)"'
+				fi'"
+				$(__fcd_get_add_bookmark_logic)"
+}
+
+__fcd_launch_bookmark_fzf() {
+	local toggle_history="$1"
+
+	local bookmarks=""
+	local pos_one=""
+	local p_show_hidden='$P_SHOW_HIDDEN'
+	local p_view_hidden
+	local sync_status=0
+	local footer_msg=""
+	local path_border_pos
+	local initial_header
+
+	[[ $_fcd_path_anchor == "header" ]] && initial_header=" "
+	[[ $_fcd_path_anchor =~ ^(top|bottom)$ ]] && path_border_pos="$_fcd_path_anchor"
+	[[ $_fcd_max_depth -ne 1 ]] && pos_one="pos(1)"
+	if [[ $_fcd_p_show_hidden == "auto" ]]; then
+		p_show_hidden=""
+		sync_status=1
+		p_view_hidden="$_fcd_show_hidden"
+	else
+		p_view_hidden="$_fcd_p_show_hidden"
+	fi
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+
+	bookmarks="$(__fcd_read_bookmarks)"
+	[[ -z $bookmarks ]] && footer_msg="No bookmarks found!"
+
+	builtin printf '%s' "$bookmarks" | $(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
+		${_fcd_height:+ --height "$_fcd_height"} ${_fcd_min_height:+ --min-height "$_fcd_min_height"} --layout="$_fcd_layout" --scheme="path" \
+		--with-nth="1,2" --delimiter=$'\t' --tabstop="1" ${_fcd_wrap:+ --wrap "$_fcd_wrap"} \
+		--border="$_fcd_border" --border-label-pos="$_fcd_path_column${path_border_pos:+:$path_border_pos}" \
+		--header-border="none" --header-label="$toggle_history" --header-first ${initial_header:+ --header "$initial_header"} \
+		--pointer="▌" --scrollbar="▐┃" --no-multi ${_fcd_cycle:+ --cycle} ${_fcd_highlight_line:+ --highlight-line} \
+		--input-border="none" --input-label="" \
+		--list-border="none" --list-label="" \
+		--footer-border="none" ${_fcd_no_input:+ --no-input} \
+		--margin="$_fcd_margin" --padding="$_fcd_padding" --query="$_fcd_query" ${_fcd_no_mouse:+ --no-mouse} \
+		--ellipsis="$_fcd_ellipsis" --info="$_fcd_info" ${_fcd_define_separator:+ --separator "$_fcd_separator"} \
+		--color="label:blue,preview-label:bright-blue,border:bright-black,header:blue" \
+		--preview-window="$_fcd_p_window" \
+		--preview='SELECTED={}
+				SELECTED="${SELECTED##*$'"'\t'"'}"
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
+		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
+		--bind 'resize:transform-preview-label('"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")"')+transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+					PREFIX="${PREFIX%%$SEP*}"
+					'"$(__fcd_rebuild_path)"'
+					_PATH="$FZF_INPUT_LABEL"
+					[[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"
+				fi' \
+		--bind 'resize:+transform:[[ {} == "." ]] && printf "refresh-preview" || printf "noop"' \
+		--bind 'focus:transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
+		--bind 'alt-left:transform:
+				if [[ $FZF_LIST_LABEL != *p* ]]; then
+					printf "noop"
+				else
+					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+						'"$(__fcd_get_nav_prev_logic)"'
+						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+					else
+						PREFIX_PART="${FZF_LIST_LABEL%p*}"
+						LEVELS_UP=$(((${#FZF_LIST_LABEL} - ${#PREFIX_PART} - 1) / 2))
+						(( LEVELS_UP == 0 )) && LEVELS_UP=1
+						FZF_LIST_LABEL="${FZF_LIST_LABEL%p*}"
+						SEP=$'"'\t'"'
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						AUX_PATH="${FZF_INPUT_LABEL##*$SEP}"
+						for ((i=0; i<LEVELS_UP; i++)); do AUX_PATH="$(command dirname "$AUX_PATH")"; done
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						FZF_INPUT_LABEL="${BASE_PATH%/}/${AUX_PATH#/}"
+						_PATH="$FZF_INPUT_LABEL"
+						[[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
+						'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+						_PATH="$AUX_PATH"
+						printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'left:transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					'"$(__fcd_get_nav_prev_logic)"'
+					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+					else
+						SEP=$'"'\t'"'
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						AUX_PATH=$(command dirname "${FZF_INPUT_LABEL##*$SEP}")
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						FZF_INPUT_LABEL="${BASE_PATH%/}/${AUX_PATH#/}"
+						_PATH="$FZF_INPUT_LABEL"
+						[[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
+						'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+						_PATH="$AUX_PATH"
+						printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'right:transform:
+				if [[ -z {} || {} == "." ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					SELECTED={}
+					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					if [[ -z $FZF_INPUT_LABEL ]]; then
+						PREFIX="[${SELECTED%%$SEP*}]"
+						BASE_PATH="${SELECTED##*$SEP}"
+						AUX_PATH="/"
+					else
+						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+						PREFIX="${PREFIX%%$SEP*}"
+						BASE_PATH="${FZF_INPUT_LABEL%%$SEP*}"
+						AUX_PATH="${FZF_INPUT_LABEL##*$SEP}"
+						AUX_PATH="${AUX_PATH%/}/${SELECTED#/}"
+					fi
+					FZF_INPUT_LABEL="${BASE_PATH%/}/${AUX_PATH#/}"
+					_PATH="$FZF_INPUT_LABEL"
+					[[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
+					_PATH="$AUX_PATH"
+					printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
+		--bind 'ctrl-p:toggle-preview+transform-preview-label:'"$(__fcd_rebuild_path)
+				$(__fcd_get_preview_label_logic "$_fcd_git_info")" \
+		--bind 'ctrl-h:transform:
+				if [[ -z $FZF_INPUT_LABEL ]]; then
+					[[ "'"$sync_status"'" -eq 1 ]] &&	printf "refresh-preview" ||	printf "noop"
+				else
+					'"$(__fcd_rebuild_path)"'
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+					else
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+					fi
+				fi' \
+		--bind 'alt-h:transform:
+				if [[ -z $FZF_INPUT_LABEL && -z {} || "'"$sync_status"'" -eq 1 ]]; then
+					printf "noop"
+				else
+				'"$(__fcd_rebuild_path)"'
+					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
+					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					else
+						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
+					fi
+				fi' \
+		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "%s" "become(printf \"reload\nbookmarks\n0\n$FZF_HEADER_LABEL\")"
+				else
+					'"$(__fcd_rebuild_path)"'
+					CURRENT_POSITION=$(({n} + 1))
+					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
+					printf "%s" "rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'ctrl-home:transform:if [[ -z $FZF_INPUT_LABEL || ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
+					printf "noop"
+				else
+					SEP=$'"'\t'"'
+					PREFIX="${FZF_INPUT_LABEL#*$SEP}"
+					PREFIX="${PREFIX%%$SEP*}"
+					AUX_PATH="/"
+					FZF_INPUT_LABEL="${FZF_INPUT_LABEL%%$'"'\t'"'*}"
+					[[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1,1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*},1"
+					_PATH="$FZF_INPUT_LABEL"
+					[[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
+					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+					_PATH="$AUX_PATH"
+					printf "%s" "change-input-label($FZF_INPUT_LABEL$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
+				fi' \
+		--bind 'alt-home:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					[[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*}"
+					[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
+					printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+				fi' \
+		--bind 'ctrl-y:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
+					'"$(__fcd_rebuild_path)"'
+				fi
+				'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
+		--bind 'alt-y:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'enter:become:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_enter_action)" \
+		--bind 'alt-s:'"$(__fcd_get_alt_s_action)" \
+		--bind 'alt-q:'"$(__fcd_get_bookmark_alt_q_action)" \
+		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
+		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
+		--bind 'ctrl-n:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+					printf "noop"
+				else
+					'"$(__fcd_rebuild_path)
+					$(__fcd_get_add_bookmark_logic)"'
+				fi' \
+		--bind 'shift-delete:transform:'"$(__fcd_get_delete_bookmark_logic)"
 }
 
 __fcd_main() {
@@ -890,29 +1193,31 @@ __fcd_main() {
 	while true; do
 		if [[ $_fcd_navigation_mode == "dir" ]]; then
 			out=$(__fcd_launch_dir_fzf "$toggle_history" "$current_dir" "$nav_history")
-		else
+		elif [[ $_fcd_navigation_mode == "drive" ]]; then
 			out=$(__fcd_launch_drive_fzf "$toggle_history")
+		elif [[ $_fcd_navigation_mode == "bookmark" ]]; then
+			out=$(__fcd_launch_bookmark_fzf "$toggle_history")
 		fi
 		status=$?
 		[[ $status -ne 0 ]] && return $status
 
 		key="${out%%$'\n'*}"; out="${out#*$'\n'}"
 		sel="${out%%$'\n'*}"; out="${out#*$'\n'}"
- 		toggle_history="${out#*$'\n'}"
+		toggle_history="${out#*$'\n'}"
 		_fcd_show_hidden="${toggle_history%%,*}"
 
 		[[ $key == "reload" ]] && continue
 		[[ -z $sel ]] && return 1
-		if [[ $key == "alt-q" ]]; then
-			nav_history="${out%%$'\n'*}"
-			current_dir="$sel"
-			_fcd_navigation_mode="drive"
-			continue
+		if [[ $key != "enter" ]]; then
+			if [[ $_fcd_navigation_mode == "dir" ]]; then
+				nav_history="${out%%$'\n'*}"
+				current_dir="$sel"
+			fi
+			[[ $key == "alt-s" ]] && _fcd_navigation_mode="dir" && continue
+			[[ $key == "alt-q" ]] && _fcd_navigation_mode="drive" && continue
+			[[ $key == "alt-n" ]] && _fcd_navigation_mode="bookmark" && continue
 		fi
-		if [[ $key == "alt-s" ]]; then
-			_fcd_navigation_mode="dir"
-			continue
-		fi
+		
 		if [[ $sel == "$origin_dir" ]]; then
 			if [[ $_fcd_out_on_same == "dot" ]]; then
 				builtin printf '%s%b' '.' "$_fcd_eol"
@@ -947,25 +1252,26 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						walker_value="${1#*=}"
 					else
-						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}walker options required: dir|drive[,[no]follow][,[no]hidden]" >&2; return 2; }
+						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}walker options required: dir|drive|bookmark[,[no]follow][,[no]hidden]" >&2; return 2; }
 						shift; walker_value="$1"
 					fi
-					[[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir' or 'drive' should be specified" >&2; return 2; }
+					[[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; return 2; }
 					_fcd_navigation_mode=""
 					IFS=',' read -r -a walker_opts <<< "$walker_value"
 					for opt in "${walker_opts[@]}"; do
 						case "$opt" in
 							dir) _fcd_navigation_mode="dir" ;;
 							drive) _fcd_navigation_mode="drive" ;;
+							bookmark) _fcd_navigation_mode="bookmark" ;;
 							hidden) _fcd_show_hidden=1 ;;
-              nohidden) _fcd_show_hidden=0 ;;
+							nohidden) _fcd_show_hidden=0 ;;
 							follow) _fcd_follow_symlink=1 ;;
-              nofollow) _fcd_follow_symlink=0 ;;
+							nofollow) _fcd_follow_symlink=0 ;;
 							'') ;;
 							*) builtin printf '%s\n' "${source:-}invalid walker option: $opt" >&2; return 2 ;;
 						esac
 					done
-					[[ -z $_fcd_navigation_mode ]] && { builtin printf '%s\n' "${source:-}at least 'dir' or 'drive' should be specified" >&2; return 2; }
+					[[ -z $_fcd_navigation_mode ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; return 2; }
 					;;
 			--walker-root|--walker-root=*)
 					if [[ $1 == *=* ]]; then
@@ -1173,17 +1479,17 @@ __fcd_parse_options() {
 					IFS=',' read -r -a preview_opts <<< "$preview_value"
 					for opt in "${preview_opts[@]}"; do
 						case "$opt" in
-              dir) _fcd_p_show_dirs=1 ;;
-              file) _fcd_p_show_files=1 ;;
-              hidden) _fcd_p_show_hidden=1 ;;
-              nohidden) _fcd_p_show_hidden=0 ;;
-              auto) _fcd_p_show_hidden="auto" ;;
-              follow) _fcd_p_follow_symlink=1 ;;
-              nofollow) _fcd_p_follow_symlink=0 ;;
-              sort) _fcd_p_sort=1 ;;
-              nosort) _fcd_p_sort=0 ;;
-              asc|desc) _fcd_p_sort_order="$opt" ;;
-              list|tree|grid) _fcd_p_mode="$opt" ;;
+							dir) _fcd_p_show_dirs=1 ;;
+							file) _fcd_p_show_files=1 ;;
+							hidden) _fcd_p_show_hidden=1 ;;
+							nohidden) _fcd_p_show_hidden=0 ;;
+							auto) _fcd_p_show_hidden="auto" ;;
+							follow) _fcd_p_follow_symlink=1 ;;
+							nofollow) _fcd_p_follow_symlink=0 ;;
+							sort) _fcd_p_sort=1 ;;
+							nosort) _fcd_p_sort=0 ;;
+							asc|desc) _fcd_p_sort_order="$opt" ;;
+							list|tree|grid) _fcd_p_mode="$opt" ;;
 							'') ;;
 							*) 
 								if [[ $opt =~ ^[0-9]+$ ]]; then
@@ -1211,15 +1517,15 @@ __fcd_parse_options() {
 					shift
 					_fcd_use_tmux=1
 					# "--" can be used to separate fzf-tmux options from fcd options
-          if [[ $tmux_opts_raw == "-- "* || $tmux_opts_raw == *" -- "* ]]; then
-            if [[ $tmux_opts_raw == "-- "* ]]; then
-              local fcd_args_raw="${tmux_opts_raw#-- }"
-            else
+					if [[ $tmux_opts_raw == "-- "* || $tmux_opts_raw == *" -- "* ]]; then
+						if [[ $tmux_opts_raw == "-- "* ]]; then
+							local fcd_args_raw="${tmux_opts_raw#-- }"
+						else
 							while IFS= read -r opt; do
 								_fcd_tmux_opts+=("$opt")
 							done < <(xargs printf '%s\n' <<< "${tmux_opts_raw%% -- *}")
 							local fcd_args_raw="${tmux_opts_raw#* -- }"
-            fi
+						fi
 						if [[ -n "${fcd_args_raw// /}" ]]; then
 							local fcd_args=()
 							while IFS= read -r arg; do
@@ -1231,7 +1537,7 @@ __fcd_parse_options() {
 						while IFS= read -r opt; do
 							_fcd_tmux_opts+=("$opt")
 						done < <(xargs printf '%s\n' <<< "$tmux_opts_raw")
-          fi
+					fi
 					continue
 					;;
 
@@ -1329,6 +1635,17 @@ __fcd_list_drives() {
 	builtin printf '%s' "$drives"
 }
 
+__fcd_read_bookmarks() {
+	[ -f "$FCD_BOOKMARKS_FILE" ] && [ -s "$FCD_BOOKMARKS_FILE" ] || return 0
+
+	while IFS= read -r line; do
+		case "$line" in
+			''|'#'*) continue ;;
+			*=*) builtin printf '%s\t%s\n' "${line%%=*}" "${line#*=}" ;;
+		esac
+	done < "$FCD_BOOKMARKS_FILE"
+}
+
 __fcd_get_border_style() {
 	local border_style
 
@@ -1367,7 +1684,7 @@ Usage: fcd [options]
     --print-current-dot      Print '.' if target directory is the current directory
 
   NAVIGATION
-    --walker=OPTS            dir|drive[,[no]follow][,[no]hidden]
+    --walker=OPTS            dir|drive|bookmark[,[no]follow][,[no]hidden]
                              (default: dir,follow,nohidden)
     --walker-root=DIR        Root directory to start navigation from (default: .)
     --walker-skip=DIRS       Comma-separated list of directory names to skip
@@ -1452,6 +1769,7 @@ Usage: fcd [options]
   ENVIRONMENT VARIABLES
     FCD_DEFAULT_OPTS         Default options (e.g. '--layout=bottom --no-sort')
     FCD_DEFAULT_OPTS_FILE    Location of the file to read default options from
+    FCD_BOOKMARKS_FILE       Location of the bookmarks file (default: $XDG_CONFIG_HOME/fcd/bookmarks)
 
 EOF
 }
@@ -1523,6 +1841,16 @@ elif command -v xclip >/dev/null 2>&1; then
 	_fcd_copy_command='xclip -selection clipboard -i'
 elif command -v xsel >/dev/null 2>&1; then
 	_fcd_copy_command='xsel --clipboard --input'
+fi
+
+if [[ -z ${FCD_BOOKMARKS_FILE-} ]]; then
+	if [ -n "$XDG_CONFIG_HOME" ]; then
+		FCD_BOOKMARKS_FILE="$XDG_CONFIG_HOME/fcd/bookmarks"
+	elif [ -d "$HOME/.config" ]; then
+		FCD_BOOKMARKS_FILE="$HOME/.config/fcd/bookmarks"
+	else
+		FCD_BOOKMARKS_FILE="$HOME/.fcd/bookmarks"
+	fi
 fi
 
 __fcd_main
