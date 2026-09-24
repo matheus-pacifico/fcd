@@ -558,10 +558,10 @@ __fcd_get_add_bookmark_logic() {
 	if [[ $bookmark_path != "/" ]]; then
 		bookmark_path="${bookmark_path%/}"
 	fi
-	name="${bookmark_path##*/}"
+	[[ -z ${NAME-} ]] && NAME="${bookmark_path##*/}"
 
-	if ! printf "%s=%s\n" "${name:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'" 2>/dev/null; then
-    if mkdir -p "$(dirname "$FCD_BOOKMARKS_FILE")" && printf "%s=%s\n" "${name:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'"; then
+	if ! printf "%s=%s\n" "${NAME:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'" 2>/dev/null; then
+    if mkdir -p "$(dirname "$FCD_BOOKMARKS_FILE")" && printf "%s=%s\n" "${NAME:-Bookmark}" "$bookmark_path" >> "'"$FCD_BOOKMARKS_FILE"'"; then
 			printf "%s" "'"$(__fcd_make_toast "Bookmark saved successfully!" SHORT "$success")"'"
     else
       printf "%s" "'"$(__fcd_make_toast "Failed to save bookmark!" MEDIUM "$failure")"'"
@@ -956,6 +956,8 @@ __fcd_launch_drive_fzf() {
 		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
 		--bind 'ctrl-n:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
 					'"$(__fcd_rebuild_path)"'
+				else
+					NAME="${FZF_CURRENT_ITEM%%$'"'\t'"'*}"
 				fi'"
 				$(__fcd_get_add_bookmark_logic)"
 }
