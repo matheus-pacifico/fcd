@@ -582,14 +582,15 @@ __fcd_get_delete_bookmark_logic() {
 		printf "noop"
 	else
 		selected={}
-		current_position=$(({n} + 1))
+		current_position="$FZF_POS"
 		bookmark="${selected%%$'"'\t'"'*}=${selected##*$'"'\t'"'}"
 
 		tmp="$(mktemp)"
 		count=1
+		excluded=0
 
 		while IFS= read -r line || [[ -n "$line" ]]; do
-			if [[ $line != "$bookmark" || $count != "$current_position" ]]; then
+			if [[ $line != "$bookmark" || $excluded == 1 || ( -z "$FZF_QUERY" && $count != "$current_position" ) ]]; then
 				builtin printf "%s\n" "$line"
 			else
 				excluded=1
