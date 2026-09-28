@@ -542,6 +542,21 @@ __fcd_get_bookmark_alt_q_action() {
 	builtin printf '%s' "$cmd"
 }
 
+__fcd_get_read_bookmarks_logic() {
+	local cmd
+
+	cmd='if [ -f \"'"$FCD_BOOKMARKS_FILE"'\" ] && [ -s \"'"$FCD_BOOKMARKS_FILE"'\" ]; then
+		while IFS= read -r line; do
+			case \"\$line\" in
+				\"\"|\"#\"*) continue ;;
+				*=*) builtin printf \"%s\t%s\n\" \"\${line%%=*}\" \"\${line#*=}\" ;;
+			esac
+		done < \"'"$FCD_BOOKMARKS_FILE"'\"
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
 __fcd_get_add_bookmark_logic() {
 	local success="green"
 	local failure="red"
@@ -590,7 +605,7 @@ __fcd_get_delete_bookmark_logic() {
 		excluded=0
 
 		while IFS= read -r line || [[ -n "$line" ]]; do
-			if [[ $line != "$bookmark" || $excluded == 1 || ( -z "$FZF_QUERY" && $count != "$current_position" ) ]]; then
+			if [[ $line != "$bookmark" || $excluded -eq 1 || ( -z "$FZF_QUERY" && $count != "$current_position" ) ]]; then
 				builtin printf "%s\n" "$line"
 			else
 				excluded=1
@@ -598,7 +613,7 @@ __fcd_get_delete_bookmark_logic() {
 			[[ $line == *=* ]] && ((count++))
 		done < "'"$FCD_BOOKMARKS_FILE"'" > "$tmp"
 
-    if [[ -f "$tmp" && ${excluded:-0} == 1 ]] && mv "$tmp" "'"$FCD_BOOKMARKS_FILE"'"; then
+    if [[ -f "$tmp" && $excluded -eq 1 ]] && mv "$tmp" "'"$FCD_BOOKMARKS_FILE"'"; then
 			printf "%s" "exclude+'"$(__fcd_make_toast "Bookmark deleted successfully!" SHORT "$success")"'"
     else
       command rm -f "$tmp"
@@ -954,7 +969,7 @@ __fcd_launch_drive_fzf() {
 		--bind 'alt-s:'"$(__fcd_get_alt_s_action)" \
 		--bind 'alt-n:'"$(__fcd_get_drive_alt_n_action)" \
 		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
-		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
+		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-y)+unbind(alt-y)+unbind(ctrl-h)+unbind(alt-h)"'} \
 		--bind 'ctrl-n:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
 					'"$(__fcd_rebuild_path)"'
 				else
@@ -966,12 +981,10 @@ __fcd_launch_drive_fzf() {
 __fcd_launch_bookmark_fzf() {
 	local toggle_history="$1"
 
-	local bookmarks=""
 	local pos_one=""
 	local p_show_hidden='$P_SHOW_HIDDEN'
 	local p_view_hidden
 	local sync_status=0
-	local footer_msg=""
 	local path_border_pos
 	local initial_header
 
@@ -987,10 +1000,7 @@ __fcd_launch_bookmark_fzf() {
 	fi
 	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
 
-	bookmarks="$(__fcd_read_bookmarks)"
-	[[ -z $bookmarks ]] && footer_msg="No bookmarks found!"
-
-	builtin printf '%s' "$bookmarks" | $(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
+	builtin printf ' ' | $(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
 		${_fcd_height:+ --height "$_fcd_height"} ${_fcd_min_height:+ --min-height "$_fcd_min_height"} --layout="$_fcd_layout" --scheme="path" \
 		--with-nth="1,2" --delimiter=$'\t' --tabstop="1" ${_fcd_wrap:+ --wrap "$_fcd_wrap"} \
 		--border="$_fcd_border" --border-label-pos="$_fcd_path_column${path_border_pos:+:$path_border_pos}" \
@@ -1008,6 +1018,7 @@ __fcd_launch_bookmark_fzf() {
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
 		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
+		--bind 'start:transform: printf "%s" "reload('"$(__fcd_get_read_bookmarks_logic)"')"' \
 		--bind 'resize:transform-preview-label('"$(__fcd_rebuild_path)
 				$(__fcd_get_preview_label_logic "$_fcd_git_info")"')+transform:
 				if [[ -z $FZF_INPUT_LABEL ]]; then
@@ -1032,7 +1043,7 @@ __fcd_launch_bookmark_fzf() {
 					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
 						'"$(__fcd_get_nav_prev_logic)"'
 						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
-						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
 					else
 						PREFIX_PART="${FZF_LIST_LABEL%p*}"
 						LEVELS_UP=$(((${#FZF_LIST_LABEL} - ${#PREFIX_PART} - 1) / 2))
@@ -1059,7 +1070,7 @@ __fcd_launch_bookmark_fzf() {
 					'"$(__fcd_get_nav_prev_logic)"'
 					if [[ ${FZF_INPUT_LABEL##*$'"'\t'"'} == "/" ]]; then
 						[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
-						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+						printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
 					else
 						SEP=$'"'\t'"'
 						PREFIX="${FZF_INPUT_LABEL#*$SEP}"
@@ -1130,7 +1141,7 @@ __fcd_launch_bookmark_fzf() {
 					fi
 				fi' \
 		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
-					printf "%s" "become(printf \"reload\nbookmarks\n0\n$FZF_HEADER_LABEL\")"
+					printf "%s" "bg-cancel+change-footer()+rebind(ctrl-y)+rebind(alt-y)+rebind(ctrl-h)+rebind(alt-h)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
 				else
 					'"$(__fcd_rebuild_path)"'
 					CURRENT_POSITION=$(({n} + 1))
@@ -1157,7 +1168,7 @@ __fcd_launch_bookmark_fzf() {
 				else
 					[[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*}"
 					[[ "'"$_fcd_path_anchor"'" == "header" ]] && path_location=" " || path_location=""
-					printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload(printf \"%s\" \"'"$bookmarks"'\")"
+					printf "%s" "clear-query+change-input-label()'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+rebind(load)+change-list-label($FZF_LIST_LABEL)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
 				fi' \
 		--bind 'ctrl-y:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
 					'"$(__fcd_rebuild_path)"'
@@ -1172,7 +1183,12 @@ __fcd_launch_bookmark_fzf() {
 		--bind 'alt-s:'"$(__fcd_get_alt_s_action)" \
 		--bind 'alt-q:'"$(__fcd_get_bookmark_alt_q_action)" \
 		--bind 'up:unbind(load)+up' --bind 'page-up:unbind(load)+page-up' \
-		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' ${footer_msg:+ --bind 'start:transform: printf "%s" "'"$(__fcd_make_toast "$footer_msg" FOREVER "red")"'+unbind(ctrl-l)+unbind(alt-l)+unbind(ctrl-h)"'} \
+		--bind 'down:unbind(load)+down' --bind 'page-down:unbind(load)+page-down' \
+		--bind 'load:+transform: if [[ -z $FZF_INPUT_LABEL ]] && (( FZF_TOTAL_COUNT == 0 )); then
+ 					printf "%s" "'"$(__fcd_make_toast "No bookmarks found!" LONG "red")"'+unbind(ctrl-y)+unbind(alt-y)+unbind(ctrl-h)+unbind(alt-h)"
+				else
+ 					printf "noop"
+				fi' \
 		--bind 'ctrl-n:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "noop"
 				else
@@ -1636,17 +1652,6 @@ __fcd_list_drives() {
 		drives="System"$'\t'"($system_name) $(__fcd_format_drive_size "$system_size")"$'\t'"/"$'\n'"$drives"
 	fi
 	builtin printf '%s' "$drives"
-}
-
-__fcd_read_bookmarks() {
-	[ -f "$FCD_BOOKMARKS_FILE" ] && [ -s "$FCD_BOOKMARKS_FILE" ] || return 0
-
-	while IFS= read -r line; do
-		case "$line" in
-			''|'#'*) continue ;;
-			*=*) builtin printf '%s\t%s\n' "${line%%=*}" "${line#*=}" ;;
-		esac
-	done < "$FCD_BOOKMARKS_FILE"
 }
 
 __fcd_get_border_style() {
