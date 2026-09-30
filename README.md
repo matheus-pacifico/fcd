@@ -9,8 +9,8 @@ An interactive directory navigator powered by [fzf](https://github.com/junegunn/
 - **Fuzzy Search Navigation:** Fast folder traversal powered by `fzf`.
 - **Multi-Walker Support:** Seamlessly switch between standard directory browsing, full system drive/partition selection, and saved bookmarks.
 - **Dynamic Previews:** Flexible preview window supporting `tree`, `list`, or `grid` modes with adjustable search depth and hidden item toggles.
+- **Git Status Preview:** Context-aware Git information in the preview label, including HEAD, staged/unstaged changes, stashes, untracked files, and conflict state.
 - **Clipboard Integration:** Instant path copying (`wl-copy`, `xclip`, `xsel`).
-- **Path Truncation:** Smart header/footer path position formatting with customizable alignment and truncation.
 - **Directory Bookmarking:** Quick saving, browsing, and deleting of favorite locations.
 - **Tmux Ready:** Native floating pane support via `fzf-tmux`.
 
@@ -194,7 +194,6 @@ Additional options control symbolic-link handling and hidden directories.
   
 - **Interactive Management:**
   - Press `Ctrl-N` in `fcd` to bookmark the selected path.
-  
   - Press `Shift-Delete` while browsing bookmarks to remove the highlighted bookmark.
 
 ### Preview
@@ -219,14 +218,26 @@ Preview behavior can also be configured for:
 - ascending or descending order
 - list, tree, or grid display
 
-You can also toggle Git status information in the preview label:
+The preview window itself can be positioned and configured using `--preview-window`.
+
+### Git Info
+
+You can also customize Git status information in the preview label:
 
 ```sh
-fcd --git       # Enable Git info in preview label
-fcd --no-git    # Disable Git info in preview label
+fcd --git=head,state,conflict  # Display specific Git indicators
+fcd --git=head,top-level       # Display HEAD info only at the repository root
+fcd --no-git                   # Disable Git info in preview label
 ```
 
-The preview window itself can be positioned and configured using `--preview-window`.
+Available Git options for `--git=OPTS`:
+
+- `head`: Current HEAD location (branch, tag, or short commit)
+- `state`: Staged (`+`) and unstaged (`*`) indicators
+- `stash`: Stash indicator (`S`)
+- `untracked`: Untracked files indicator (`%`)
+- `conflict`: Merge/rebase conflict indicator (`!`)
+- `top-level`: Show info only at repository roots
 
 ### Sorting
 
