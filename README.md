@@ -90,6 +90,11 @@ Pass options directly to fzf-tmux
 fcd --tmux="-p 60% -- --layout=bottom"
 ```
 
+Open fcd in a floating popup window (requires tmux 3.3+ or Zellij 0.44+)
+```
+fcd --popup=80%
+```
+
 Start with a specific search query:
 ```sh
 fcd --query="project"
