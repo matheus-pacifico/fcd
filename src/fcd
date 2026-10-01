@@ -1702,7 +1702,7 @@ __fcd_list_drives() {
 				;;
 		esac
 	done < <(command lsblk -P -b -e 1,7,11,179 -o LABEL,NAME,SIZE,MOUNTPOINT,FSTYPE)
- 
+
 	if [ -n "$system_name" ]; then
 		drives="System"$'\t'"($system_name) $(__fcd_format_drive_size "$system_size")"$'\t'"/"$'\n'"$drives"
 	fi
@@ -1710,16 +1710,10 @@ __fcd_list_drives() {
 }
 
 __fcd_get_border_style() {
-	local border_style
+	local border_style="top"
 
-	if [[ -n $TMUX && $_fcd_use_tmux -eq 1 ]]; then
-		if [[ ${#_fcd_tmux_opts[@]} -eq 0 ]]; then
-			[[ -z $_fcd_path_anchor || $_fcd_path_anchor =~ ^(header|none)$ ]] && border_style="none" || border_style="top"
-		else
-			border_style="top"
-		fi
-	else
-		border_style="top"
+	if [[ -n $TMUX && $_fcd_use_tmux -eq 1 && ${#_fcd_tmux_opts[@]} -eq 0 ]]; then
+		[[ -z $_fcd_path_anchor || $_fcd_path_anchor =~ ^(header|none)$ ]] && border_style="none"
 	fi
 
 	builtin printf '%s' "$border_style"
