@@ -291,7 +291,8 @@ __fcd_get_git_info_logic() {
 	local cmd=''
 
 	if (( _fcd_git_info == 1 )); then
-		cmd='selected_dir="${FZF_INPUT_LABEL%/}/${FZF_CURRENT_ITEM##*$'"'\t'"'}"'$'\n'
+		cmd='selected_dir={}
+		selected_dir="${FZF_INPUT_LABEL%/}/${selected_dir##*$'"'\t'"'}"'$'\n'
 		if (( _fcd_git_top_level == 1 )); then
       cmd+='if [[ -e "$selected_dir/.git" ]]; then'$'\n'
     else
@@ -1006,7 +1007,8 @@ __fcd_launch_drive_fzf() {
 		--bind 'ctrl-n:transform:if [[ -n $FZF_INPUT_LABEL ]]; then
 					'"$(__fcd_rebuild_path)"'
 				else
-					NAME="${FZF_CURRENT_ITEM%%$'"'\t'"'*}"
+					SELECTED={}
+					NAME="${SELECTED%%$'"'\t'"'*}"
 				fi'"
 				$(__fcd_get_add_bookmark_logic)"
 }
