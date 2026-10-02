@@ -1427,6 +1427,7 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						_fcd_wrap="${1#*=}"
 					else
+						[[ $# -lt 2 || $2 == --* ]] && { _fcd_wrap="word"; shift; continue; }
 						shift; _fcd_wrap="$1"
 					fi
 					[[ -z $_fcd_wrap ]] && { builtin printf '%s\n' "${source:-}wrap mode required (char or word)" >&2; return 2; }
@@ -1574,7 +1575,7 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						tmux_opts_raw="${1#*=}"
 					else
-						[[ $# -lt 2 ]] && { _fcd_use_tmux=1; shift; continue; }
+						[[ $# -lt 2 || $2 == --[![:space:]]* ]] && { _fcd_use_tmux=1; shift; continue; }
 						shift; tmux_opts_raw="$1"
 					fi
 					[[ -z "${tmux_opts_raw// /}" ]] && { builtin printf '%s\n' "${source:-}invalid tmux option" >&2; return 2; }
