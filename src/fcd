@@ -1774,9 +1774,9 @@ Usage: fcd [options]
     --no-max-depth           Disable the maximum traversal depth
 
   SORTING
-    --sort                   Enable sorting (default)
+    --sort[=ORDER]           Enable sorting [asc|desc] (default: asc)
     --no-sort                Disable sorting
-    --sort-order=ORDER       Sort order [asc|desc] (default: asc)
+    --sort-order=ORDER       Sort order [asc|desc] (deprecated: use --sort ORDER)
 
   LAYOUT/UI
     --height=[~][-]HEIGHT[%] Display fcd window below the cursor with the given
@@ -1798,7 +1798,7 @@ Usage: fcd [options]
     --no-cycle               Disable cyclic scroll
     --highlight-line         Highlight the whole current line
     --no-highlight-line      Disable whole line highlighting (default)
-    --wrap=MODE              Enable line wrap (char|word, default: word)
+    --wrap[=MODE]            Enable line wrap (char|word, default: word)
     --no-wrap                Disable line wrapping
     --ellipsis=STR           Ellipsis to show when line is truncated (default: '··')
     --no-mouse               Disable mouse interactions
@@ -1837,14 +1837,9 @@ Usage: fcd [options]
                              OPTS are passed directly to fzf-tmux.
                              Use '--' inside OPTS to separate fzf-tmux flags from fcd flags
     --ignore-ctrl-z          Disable the Ctrl-Z key binding
-    --git=OPTS               Display Git info in preview label (comma-separated OPTS):
-                             head      Current HEAD location (branch, tag, or short commit)
-                             state     Staged (+) and unstaged (*) indicators
-                             stash     Stash indicator (S)
-                             untracked Untracked files indicator (%)
-                             conflict  Merge/rebase conflict indicator (!)
-                             top-level Show info only at repository roots
-                             Requires at least one Git status option
+    --git[=OPTS]             Display Git info in preview label
+                             [head][,state][,stash][,untracked][,conflict][,top-level] (default: head)
+                             top-level requires at least one status option
     --no-git                 Disable Git info in preview label
     --popup[=OPTS]           Start fcd in a floating pane (requires tmux 3.3+ or Zellij 0.44+)
                              [center|top|bottom|left|right][,SIZE[%]][,SIZE[%]]
