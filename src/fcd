@@ -1353,9 +1353,19 @@ __fcd_parse_options() {
 			--no-max-depth) _fcd_max_depth="" ;;
 
 			# sorting
-			--sort)	_fcd_sort=1 ;;
+			--sort)	
+					_fcd_sort=1 
+					if [[ $1 == *=* ]]; then
+						_fcd_sort_order="${1#*=}"
+					else
+						[[ $# -lt 2 || $2 == --* ]] && { shift; continue; }
+						shift; _fcd_sort_order="$1"
+					fi
+					[[ ! "$_fcd_sort_order" =~ ^(asc|desc)$ ]] && { builtin printf '%s\n' "${source:-}invalid sort order (expected: asc or desc)" >&2; return 2; }
+					;;
 			--no-sort) _fcd_sort=0 ;;
-			--sort-order|--sort-order=*)
+			--sort-order|--sort-order=*) # deprecated
+					builtin printf '%s\n' "${source:-}WARNING: --sort-order is deprecated. Use '--sort asc' or '--sort desc' instead." >&2
 					if [[ $1 == *=* ]]; then
 						_fcd_sort_order="${1#*=}"
 					else
@@ -1608,10 +1618,10 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						git_value="${1#*=}"
 					else
-						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}git options required: [,head][,state][,stash][,untracked][,conflict][,top-level]" >&2; return 2; }
+						[[ $# -lt 2 || $2 == --* ]] && { _fcd_git_info=1; _fcd_git_head=1; shift; continue; }
 						shift; git_value="$1"
 					fi
-					[[ -z $git_value ]] && { builtin printf '%s\n' "${source:-}invalid git option" >&2; return 2; }
+					[[ -z $git_value ]] && { builtin printf '%s\n' "${source:-}invalid git option: (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2; }
 					_fcd_git_info=0
 					IFS=',' read -r -a git_opts <<< "$git_value"
 					for opt in "${git_opts[@]}"; do
@@ -1623,7 +1633,7 @@ __fcd_parse_options() {
 							conflict)  _fcd_git_conflict=1; _fcd_git_info=1 ;;
 							top-level) _fcd_git_top_level=1;;
 							'') ;;
-							*) builtin printf '%s\n' "${source:-}invalid git option: $opt" >&2; return 2 ;;
+							*) builtin printf '%s\n' "${source:-}invalid git option: $opt (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2 ;;
 						esac
 					done
 					[[ $_fcd_git_info -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'head', 'state', 'stash', 'untracked' or 'conflict' should be specified" >&2; return 2; }
@@ -1664,16 +1674,16 @@ __fcd_format_drive_size() {
 	local value unit
 
 	if (( size >= ONE_TiB )); then
-		value=$(( (size * 10) / ONE_TiB ))
+		value=$(((size * 10) / ONE_TiB))
 		unit="T"
 	elif (( size >= ONE_GiB )); then
-		value=$(( (size * 10) / ONE_GiB ))
+		value=$(((size * 10) / ONE_GiB))
 		unit="G"
 	elif (( size >= ONE_MiB )); then
-		value=$(( (size * 10) / ONE_MiB ))
+		value=$(((size * 10) / ONE_MiB))
 		unit="M"
 	else
-		value=$(( (size * 10) / ONE_KiB ))
+		value=$(((size * 10) / ONE_KiB))
 		unit="K"
 	fi
 
@@ -1723,7 +1733,7 @@ __fcd_list_drives() {
 __fcd_get_border_style() {
 	local border_style="top"
 
-	if [[ -n $TMUX && $_fcd_use_tmux -eq 1 && ${#_fcd_tmux_opts[@]} -eq 0 ]]; then
+	if [[ -n $TMUX && ($_fcd_use_tmux -eq 1 && ${#_fcd_tmux_opts[@]} -eq 0 || $_fcd_use_popup -eq 1) ]]; then
 		[[ -z $_fcd_path_anchor || $_fcd_path_anchor =~ ^(header|none)$ ]] && border_style="none"
 	fi
 
