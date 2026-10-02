@@ -1355,7 +1355,7 @@ __fcd_parse_options() {
 			--no-max-depth) _fcd_max_depth="" ;;
 
 			# sorting
-			--sort)	
+			--sort|--sort=*)	
 					_fcd_sort=1 
 					if [[ $1 == *=* ]]; then
 						_fcd_sort_order="${1#*=}"
