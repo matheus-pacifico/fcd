@@ -235,7 +235,7 @@ fcd --git=head,top-level       # Display HEAD info only at the repository root
 fcd --no-git                   # Disable Git info in preview label
 ```
 
-Available Git options for `--git=OPTS`:
+Available Git options for `--git[=OPTS]`:
 
 - `head`: Current HEAD location (branch, tag, or short commit)
 - `state`: Staged (`+`) and unstaged (`*`) indicators
@@ -253,14 +253,16 @@ fcd --sort
 fcd --no-sort
 ```
 
-The sort order can be changed with:
+The sort order can be specified directly with `--sort`:
 
-```sh
-fcd --sort-order=asc
-fcd --sort-order=desc
+```
+fcd --sort=asc
+fcd --sort=desc
 ```
 
 Sorting is enabled by default and uses ascending order.
+
+> **Note:** `--sort-order` is deprecated in favor of `--sort [asc|desc]`.
 
 ### Output
 
