@@ -1575,12 +1575,14 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						tmux_opts_raw="${1#*=}"
 					else
-						[[ $# -lt 2 || $2 == --[![:space:]]* ]] && { _fcd_use_tmux=1; shift; continue; }
+						[[ $# -lt 2 || $2 == --[![:space:]]* ]] && { _fcd_use_tmux=1; _fcd_tmux_opts=(); _fcd_use_popup=""; shift; continue; }
 						shift; tmux_opts_raw="$1"
 					fi
 					[[ -z "${tmux_opts_raw// /}" ]] && { builtin printf '%s\n' "${source:-}invalid tmux option" >&2; return 2; }
 					shift
 					_fcd_use_tmux=1
+					_fcd_tmux_opts=()
+					_fcd_use_popup=""
 					# "--" can be used to separate fzf-tmux options from fcd options
 					if [[ $tmux_opts_raw == "-- "* || $tmux_opts_raw == *" -- "* ]]; then
 						if [[ $tmux_opts_raw == "-- "* ]]; then
@@ -1607,6 +1609,8 @@ __fcd_parse_options() {
 					;;
 			--popup|--popup=*)
 					_fcd_use_popup=1
+					_fcd_use_tmux=0
+					_fcd_tmux_opts=()
 					if [[ $1 == *=* ]]; then
 						_fcd_popup="${1#*=}"
 					else
@@ -1634,7 +1638,7 @@ __fcd_parse_options() {
 							stash)     _fcd_git_stash=1; _fcd_git_info=1 ;;
 							untracked) _fcd_git_untracked=1; _fcd_git_info=1 ;;
 							conflict)  _fcd_git_conflict=1; _fcd_git_info=1 ;;
-							top-level) _fcd_git_top_level=1;;
+							top-level) _fcd_git_top_level=1 ;;
 							'') ;;
 							*) builtin printf '%s\n' "${source:-}invalid git option: $opt (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2 ;;
 						esac
