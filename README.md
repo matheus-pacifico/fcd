@@ -80,7 +80,7 @@ Start browsing from a specific path
 fcd --walker-root ~/Projects
 ```
 
-Limit traversal depth and start with a preview
+Limit traversal depth and use the tree preview mode showing directories only
 ```sh
 fcd --max-depth=2 --preview=dir,tree
 ```
@@ -208,7 +208,7 @@ The preview window can be configured independently from directory navigation.
 For example, to use a deeper preview:
 
 ```sh
-fcd --preview=dir,follow,sort,asc,list,3
+fcd --preview=dir,3
 ```
 
 The numeric value specifies the maximum preview depth. A value of `0` means unlimited depth.
