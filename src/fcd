@@ -1355,12 +1355,12 @@ __fcd_parse_options() {
 			--no-max-depth) _fcd_max_depth="" ;;
 
 			# sorting
-			--sort|--sort=*)	
+			--sort|--sort=*)
 					_fcd_sort=1 
 					if [[ $1 == *=* ]]; then
 						_fcd_sort_order="${1#*=}"
 					else
-						[[ $# -lt 2 || $2 == --* ]] && { shift; continue; }
+						[[ $# -lt 2 || $2 == --* ]] && { _fcd_sort_order="asc"; shift; continue; }
 						shift; _fcd_sort_order="$1"
 					fi
 					[[ ! "$_fcd_sort_order" =~ ^(asc|desc)$ ]] && { builtin printf '%s\n' "${source:-}invalid sort order (expected: asc or desc)" >&2; return 2; }
