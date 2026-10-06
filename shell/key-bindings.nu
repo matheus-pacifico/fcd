@@ -41,6 +41,20 @@ def __fcdcmd []: nothing -> list<string> {
   ['fcd']
 }
 
+# Keybinding modes to activate. The Helix modes only exist since Nushell
+# 0.115.0, so they are only included when running a version that supports
+# them (major > 0 covers a hypothetical 1.0+ where the minor resets).
+def __fcd_modes []: nothing -> list<string> {
+  let v = version
+  let major = ($v.major | into int)
+  let minor = ($v.minor | into int)
+  if ($major > 0) or ($minor >= 115) {
+    ['emacs', 'vi_normal', 'vi_insert', 'helix_normal', 'helix_select', 'helix_insert']
+  } else {
+    ['emacs', 'vi_normal', 'vi_insert']
+  }
+}
+
 export-env {
   $env.FCD_ALT_S_OPTS     = $env.FCD_ALT_S_OPTS?     | default ""
   $env.FCD_ALT_Q_OPTS     = $env.FCD_ALT_Q_OPTS?     | default ""
@@ -48,11 +62,11 @@ export-env {
 }
 
 # Directories
-const alt_s = {
+let alt_s = {
     name: fcd_dirs
     modifier: alt
     keycode: char_s
-    mode: [emacs, vi_normal, vi_insert]
+    mode: (__fcd_modes)
     event: [
       {
         send: executehostcommand
@@ -71,11 +85,11 @@ const alt_s = {
 }
 
 # Drives
-const alt_q = {
+let alt_q = {
     name: fcd_drives
     modifier: alt
     keycode: char_q
-    mode: [emacs, vi_normal, vi_insert]
+    mode: (__fcd_modes)
     event: [
       {
         send: executehostcommand
@@ -94,11 +108,11 @@ const alt_q = {
 }
 
 # Bookmarks
-const alt_n = {
+let alt_n = {
     name: fcd_bookmarks
     modifier: alt
     keycode: char_n
-    mode: [emacs, vi_normal, vi_insert]
+    mode: (__fcd_modes)
     event: [
       {
         send: executehostcommand
