@@ -1571,39 +1571,23 @@ __fcd_parse_options() {
 
 			# tmux
 			--tmux|--tmux=*)
-					local tmux_opts_raw
-					if [[ $1 == *=* ]]; then
-						tmux_opts_raw="${1#*=}"
-					else
-						[[ $# -lt 2 || $2 == --[![:space:]]* ]] && { _fcd_use_tmux=1; _fcd_tmux_opts=(); _fcd_use_popup=""; shift; continue; }
-						shift; tmux_opts_raw="$1"
-					fi
-					[[ -z "${tmux_opts_raw// /}" ]] && { builtin printf '%s\n' "${source:-}invalid tmux option" >&2; return 2; }
-					shift
 					_fcd_use_tmux=1
 					_fcd_tmux_opts=()
 					_fcd_use_popup=""
-					# "--" can be used to separate fzf-tmux options from fcd options
-					if [[ $tmux_opts_raw == "-- "* || $tmux_opts_raw == *" -- "* ]]; then
-						if [[ $tmux_opts_raw == "-- "* ]]; then
-							local fcd_args_raw="${tmux_opts_raw#-- }"
-						else
-							while IFS= read -r opt; do
-								_fcd_tmux_opts+=("$opt")
-							done < <(xargs printf '%s\n' <<< "${tmux_opts_raw%% -- *}")
-							local fcd_args_raw="${tmux_opts_raw#* -- }"
-						fi
-						if [[ -n "${fcd_args_raw// /}" ]]; then
-							local fcd_args=()
-							while IFS= read -r arg; do
-								fcd_args+=("$arg")
-							done < <(xargs printf '%s\n' <<< "$fcd_args_raw")
-							set -- "${fcd_args[@]}" "$@"
-						fi
-					elif [[ $tmux_opts_raw != "--" ]]; then
-						while IFS= read -r opt; do
-							_fcd_tmux_opts+=("$opt")
-						done < <(xargs printf '%s\n' <<< "$tmux_opts_raw")
+					if [[ $1 == *=* ]]; then
+						local tmux_opts="${1#*=}"
+						shift
+						[[ -z "${tmux_opts// /}" || $tmux_opts == *"--"* ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${tmux_opts-}" >&2; return 2; }
+						read -r -a _fcd_tmux_opts <<< "$tmux_opts"
+					else
+						[[ $# -lt 2 || $2 == --* ]] && { shift; continue; }
+						shift
+						while [[ $# -gt 0 ]]; do
+							[[ $1 == *"--"* ]] && break
+							_fcd_tmux_opts+=("$1")
+							shift
+						done
+						[[ ${#_fcd_tmux_opts[@]} -eq 0 ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${1-}" >&2; return 2; }
 					fi
 					continue
 					;;
@@ -1846,7 +1830,7 @@ Usage: fcd [options]
   INTEGRATION
     --tmux[=OPTS]            Run fcd through fzf-tmux
                              OPTS are passed directly to fzf-tmux.
-                             Use '--' inside OPTS to separate fzf-tmux flags from fcd flags
+                             (e.g., -p 80%, -d 40%)
     --ignore-ctrl-z          Disable the Ctrl-Z key binding
     --git[=OPTS]             Display Git info in preview label
                              [head][,state][,stash][,untracked][,conflict][,top-level] (default: head)
