@@ -38,38 +38,35 @@ fi
 {
 if [[ -o interactive ]]; then
 
-__fcd_tmux_opts() {
-  [[ -n ${TMUX_PANE-} ]] && { [[ ${FCD_TMUX:-0} != 0 ]] || [[ -n ${FCD_TMUX_OPTS-} ]]; } &&
-    builtin printf -- '--tmux=%s -- ' "${FCD_TMUX_OPTS:--d${FCD_TMUX_HEIGHT:-40%}}" || builtin printf ''
-}
-
 __fcd_defaults() {
   builtin printf '%s\n' "--height ${FCD_TMUX_HEIGHT:-40%} --min-height 20+ --ignore-ctrl-z $1"
   command cat "${FCD_DEFAULT_OPTS_FILE-}" 2> /dev/null
   builtin printf '%s\n' "${FCD_DEFAULT_OPTS-} $2"
 }
 
+__fcdcmd() {
+  [[ -n ${TMUX_PANE-} ]] && { [[ ${FCD_TMUX:-0} != 0 ]] || [[ -n ${FCD_TMUX_OPTS-} ]]; } &&
+    builtin printf 'command fcd --tmux %s -- \n' "${FCD_TMUX_OPTS:--d${FCD_TMUX_HEIGHT:-40%}}" || builtin printf 'command fcd\n'
+}
+
 # ALT-S - cd into the selected directory
 fcd-widget() {
   setopt localoptions pipefail no_aliases 2> /dev/null
-	local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   local dir="$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=dir,follow,nohidden" "${FCD_ALT_S_OPTS-}") \
-		FCD_DEFAULT_OPTS_FILE='' \
-		command fcd ${tmux_opts:+"$tmux_opts"})"
+    FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd) < /dev/tty)"
   if [[ -z "$dir" ]]; then
-	  zle redisplay
-	  return 0
-	fi
+    zle redisplay
+    return 0
+  fi
   dir=$(builtin cd -q >/dev/null -- "${dir}" && echo "${PWD}" || echo "${dir}")
-	zle push-line # Clear buffer. Auto-restored on next prompt.
-	BUFFER="builtin cd -- ${(q)dir}"
-	zle accept-line
-	local ret=$?
-	unset dir # ensure this doesn't end up appearing in prompt expansion
-	zle reset-prompt
-	return $ret
+  zle push-line # Clear buffer. Auto-restored on next prompt.
+  BUFFER="builtin cd -- ${(q)dir}"
+  zle accept-line
+  local ret=$?
+  unset dir # ensure this doesn't end up appearing in prompt expansion
+  zle reset-prompt
+  return $ret
 }
 if [[ "${FCD_ALT_S_COMMAND-x}" != "" ]]; then
   zle     -N             fcd-widget
@@ -81,12 +78,9 @@ fi
 # ALT-Q - cd into the selected drive and/or directory
 fcd-drives-widget() {
   setopt localoptions pipefail no_aliases 2> /dev/null
-	local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   local dir="$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=drive,follow,nohidden" "${FCD_ALT_Q_OPTS-}") \
-		FCD_DEFAULT_OPTS_FILE='' \
-		command fcd ${tmux_opts:+"$tmux_opts"})"
+    FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd) < /dev/tty)"
   if [[ -z "$dir" ]]; then
 	  zle redisplay
 	  return 0
@@ -110,12 +104,9 @@ fi
 # ALT-N - cd into the selected bookmarked directory
 fcd-bookmarks-widget() {
   setopt localoptions pipefail no_aliases 2> /dev/null
-	local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   local dir="$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=bookmark,follow,nohidden" "${FCD_ALT_N_OPTS-}") \
-		FCD_DEFAULT_OPTS_FILE='' \
-		command fcd ${tmux_opts:+"$tmux_opts"})"
+    FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd) < /dev/tty)"
   if [[ -z "$dir" ]]; then
 	  zle redisplay
 	  return 0

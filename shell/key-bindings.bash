@@ -19,9 +19,9 @@ if [[ $- =~ i ]]; then
 # Key bindings
 # ------------
 
-__fcd_tmux_opts() {
+__fcdcmd() {
   [[ -n ${TMUX_PANE-} ]] && { [[ ${FCD_TMUX:-0} != 0 ]] || [[ -n ${FCD_TMUX_OPTS-} ]]; } &&
-    builtin printf -- '--tmux=%s -- ' "${FCD_TMUX_OPTS:--d${FCD_TMUX_HEIGHT:-40%}}" || builtin printf ''
+    builtin printf 'command fcd --tmux %s -- \n' "${FCD_TMUX_OPTS:--d${FCD_TMUX_HEIGHT:-40%}}" || builtin printf 'command fcd\n'
 }
 
 __fcd_defaults() {
@@ -32,31 +32,25 @@ __fcd_defaults() {
 
 __fcd__() {
   local dir
-  local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   dir=$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=dir,follow,nohidden" "${FCD_ALT_S_OPTS-}") \
-      FCD_DEFAULT_OPTS_FILE='' command fcd ${tmux_opts:+"$tmux_opts"}
+      FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd)
   ) && printf 'builtin cd -- %q' "$(builtin unset CDPATH && builtin cd -- "$dir" && builtin pwd)"
 }
 
 __fcd_drive__() {
   local dir
-  local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   dir=$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=drive,follow,nohidden" "${FCD_ALT_Q_OPTS-}") \
-      FCD_DEFAULT_OPTS_FILE='' command fcd ${tmux_opts:+"$tmux_opts"}
+      FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd)
   ) && printf 'builtin cd -- %q' "$(builtin unset CDPATH && builtin cd -- "$dir" && builtin pwd)"
 }
 
 __fcd_bookmark__() {
   local dir
-  local tmux_opts
-  tmux_opts="$(__fcd_tmux_opts)"
   dir=$(
     FCD_DEFAULT_OPTS=$(__fcd_defaults "--walker=bookmark,follow,nohidden" "${FCD_ALT_N_OPTS-}") \
-      FCD_DEFAULT_OPTS_FILE='' command fcd ${tmux_opts:+"$tmux_opts"}
+      FCD_DEFAULT_OPTS_FILE='' $(__fcdcmd)
   ) && printf 'builtin cd -- %q' "$(builtin unset CDPATH && builtin cd -- "$dir" && builtin pwd)"
 }
 

@@ -28,18 +28,17 @@ def __fcd_defaults [prepend: string, append: string]: nothing -> string {
   $"($base) ($opts_file) ($default_opts) ($append)" | str trim
 }
 
-def __fcd_tmux_opts []: nothing -> string {
+def __fcdcmd []: nothing -> list<string> {
   let in_tmux = ($env.TMUX_PANE? | default '' | into string | is-not-empty)
-  if not $in_tmux { return '' }
-
-  let fcd_tmux = ($env.FCD_TMUX? | default 0 | into string)
-  let fcd_tmux_opts = ($env.FCD_TMUX_OPTS? | default '' | into string)
-  if ($fcd_tmux != '0') or ($fcd_tmux_opts | is-not-empty) {
-		let opts = if ($fcd_tmux_opts | is-not-empty) { $fcd_tmux_opts } else { $"-d($env.FCD_TMUX_HEIGHT? | default '40%')" }
-		$"--tmux=($opts) -- "
-	} else {
-		''
-	}
+  if $in_tmux {
+    let fcd_tmux = ($env.FCD_TMUX? | default 0 | into string)
+    let fcd_tmux_opts = ($env.FCD_TMUX_OPTS? | default '' | into string)
+    if ($fcd_tmux != '0') or ($fcd_tmux_opts | is-not-empty) {
+      let opts = if ($fcd_tmux_opts | is-not-empty) { $fcd_tmux_opts } else { $"-d($env.FCD_TMUX_HEIGHT? | default '40%')" }
+      return ['fcd' '--tmux' ...(($opts | split row ' ' | where { $in != '' })) '--']
+    }
+  }
+  ['fcd']
 }
 
 export-env {
@@ -58,15 +57,12 @@ const alt_s = {
       {
         send: executehostcommand
         cmd: "
-          let tmux_opts = __fcd_tmux_opts
-				  let fcd_opts = (__fcd_defaults '--walker=dir,follow,nohidden' $'($env.FCD_ALT_S_OPTS)');
+          let fcd_opts = (__fcd_defaults '--walker=dir,follow,nohidden' $'($env.FCD_ALT_S_OPTS)');
+          let fcdcmd = (__fcdcmd);
+          let fcd_args = ($fcdcmd | skip 1);
           let alt_s_cmd = ($env.FCD_ALT_S_COMMAND? | default null);
           let result = if ($alt_s_cmd == null) or ($alt_s_cmd | is-empty) {
-					  if ($tmux_opts | is-empty) {
-					  	with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd }
-				  	} else {
-				  		with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd $tmux_opts }
-					  }
+            with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^($fcdcmd | first) ...$fcd_args }
           };
           if ($result | is-not-empty) { cd $result };
         "
@@ -84,15 +80,12 @@ const alt_q = {
       {
         send: executehostcommand
         cmd: "
-          let tmux_opts = __fcd_tmux_opts
-				  let fcd_opts = (__fcd_defaults '--walker=drive,follow,nohidden' $'($env.FCD_ALT_Q_OPTS)');
+          let fcd_opts = (__fcd_defaults '--walker=drive,follow,nohidden' $'($env.FCD_ALT_Q_OPTS)');
+          let fcdcmd = (__fcdcmd);
+          let fcd_args = ($fcdcmd | skip 1);
           let alt_q_cmd = ($env.FCD_ALT_Q_COMMAND? | default null);
           let result = if ($alt_q_cmd == null) or ($alt_q_cmd | is-empty) {
-					  if ($tmux_opts | is-empty) {
-					  	with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd }
-				  	} else {
-				  		with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd $tmux_opts }
-					  }
+            with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^($fcdcmd | first) ...$fcd_args }
           };
           if ($result | is-not-empty) { cd $result };
         "
@@ -110,15 +103,12 @@ const alt_n = {
       {
         send: executehostcommand
         cmd: "
-          let tmux_opts = __fcd_tmux_opts
-				  let fcd_opts = (__fcd_defaults '--walker=bookmark,follow,nohidden' $'($env.FCD_ALT_N_OPTS)');
+          let fcd_opts = (__fcd_defaults '--walker=bookmark,follow,nohidden' $'($env.FCD_ALT_N_OPTS)');
+          let fcdcmd = (__fcdcmd);
+          let fcd_args = ($fcdcmd | skip 1);
           let alt_n_cmd = ($env.FCD_ALT_N_COMMAND? | default null);
           let result = if ($alt_n_cmd == null) or ($alt_n_cmd | is-empty) {
-					  if ($tmux_opts | is-empty) {
-					  	with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd }
-				  	} else {
-				  		with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^fcd $tmux_opts }
-					  }
+            with-env { FCD_DEFAULT_OPTS: $fcd_opts, FCD_DEFAULT_OPTS_FILE: '' } { ^($fcdcmd | first) ...$fcd_args }
           };
           if ($result | is-not-empty) { cd $result };
         "

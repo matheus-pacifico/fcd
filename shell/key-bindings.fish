@@ -40,14 +40,14 @@ function fcd_key_bindings
       $FCD_DEFAULT_OPTS $argv[2..]
   end
 
-	function __fcd_tmux_opts
+	function __fcdcmd
     test -n "$FCD_TMUX_HEIGHT"; or set -l FCD_TMUX_HEIGHT 40%
     if test -n "$FCD_TMUX_OPTS"
-      echo "--tmux $FCD_TMUX_OPTS -- "
+      command fcd --tmux (string split --no-empty ' ' -- "$FCD_TMUX_OPTS") --
     else if test "$FCD_TMUX" = "1"
-      echo "--tmux -d$FCD_TMUX_HEIGHT -- "
+      command fcd --tmux "-d$FCD_TMUX_HEIGHT" --
     else
-      echo ""
+      command fcd
     end
   end
 
@@ -110,15 +110,14 @@ function fcd_key_bindings
     set -lx dir $commandline[1]
     set -l fcd_query $commandline[2]
     set -l prefix $commandline[3]
-		set -l tmux_opts (__fcd_tmux_opts)
 
-		set -lx FCD_DEFAULT_OPTS (__fcd_defaults "$tmux_opts" \
+    set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
       "--walker=dir,follow,nohidden" \
       "$FCD_ALT_S_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
 
-    if set -l result (command fcd | string split0)
+    if set -l result (__fcdcmd | string split0)
       cd -- $result
       commandline -rt -- $prefix
     end
@@ -131,15 +130,14 @@ function fcd_key_bindings
     set -lx dir $commandline[1]
     set -l fcd_query $commandline[2]
     set -l prefix $commandline[3]
-		set -l tmux_opts (__fcd_tmux_opts)
 
-		set -lx FCD_DEFAULT_OPTS (__fcd_defaults "$tmux_opts" \
+		set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
       "--walker=drive,follow,nohidden" \
       "$FCD_ALT_Q_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
 
-    if set -l result (command fcd | string split0)
+    if set -l result (__fcdcmd | string split0)
       cd -- $result
       commandline -rt -- $prefix
     end
@@ -152,15 +150,14 @@ function fcd_key_bindings
     set -lx dir $commandline[1]
     set -l fcd_query $commandline[2]
     set -l prefix $commandline[3]
-		set -l tmux_opts (__fcd_tmux_opts)
 
-		set -lx FCD_DEFAULT_OPTS (__fcd_defaults "$tmux_opts" \
+		set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
       "--walker=bookmark,follow,nohidden" \
       "$FCD_ALT_N_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
 
-    if set -l result (command fcd | string split0)
+    if set -l result (__fcdcmd | string split0)
       cd -- $result
       commandline -rt -- $prefix
     end
@@ -182,6 +179,8 @@ function fcd_key_bindings
     bind \en fcd-bookmarks-widget
     bind -M insert \en fcd-bookmarks-widget
   end
+
+	
 
 end
 
