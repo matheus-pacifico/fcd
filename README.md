@@ -85,13 +85,14 @@ Limit traversal depth and use the tree preview mode showing directories only
 fcd --max-depth=2 --preview=dir,tree
 ```
 
-Pass options directly to fzf-tmux
+Open in a 40% bottom split with no border
+
 ```sh
-fcd --tmux="-p 60% -- --layout=bottom"
+fcd --tmux -d 40% --border=none
 ```
 
 Open fcd in a floating popup window (requires tmux 3.3+ or Zellij 0.44+)
-```
+```sh
 fcd --popup=80%
 ```
 
@@ -295,10 +296,25 @@ fcd --print0
 ```sh
 fcd --tmux
 ```
+Options supplied to `--tmux` are passed directly to `fzf-tmux` (e.g., `-p`, `-d`, `-w`, `-h`). Standard `fcd` options can be passed alongside `--tmux` as usual:
 
-Options supplied to `--tmux` are passed directly to `fzf-tmux`.
+```sh
+# Run in a tmux popup covering 60% of the screen with bottom layout
+fcd --tmux -p 60% -- --layout=bottom
+```
 
-Use `--` inside the option list to separate `fzf-tmux` options from `fcd` options.
+#### Floating Popups (`--popup`)
+
+For a simpler cross-multiplexer syntax, use `--popup`
+
+```sh
+# Centered floating popup (80% size)
+fcd --popup=80%
+
+# Top-anchored popup with custom width and height
+fcd --popup=top,80%,40%
+```
+`--popup` also works outside tmux if running inside Zellij 0.44+.
 
 > [!TIP]
 > For a complete list of command-line options and their syntax, run:
