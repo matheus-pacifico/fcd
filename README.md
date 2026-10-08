@@ -314,12 +314,18 @@ fcd --popup=80%
 # Top-anchored popup with custom width and height
 fcd --popup=top,80%,40%
 ```
+
 `--popup` also works outside tmux if running inside Zellij 0.44+.
 
 > [!TIP]
 > For a complete list of command-line options and their syntax, run:
 > ```sh
 > fcd --help
+> ```
+>
+> Or view the manual page:
+> ```sh
+> fcd --man
 > ```
 
 ## Key bindings for command-line

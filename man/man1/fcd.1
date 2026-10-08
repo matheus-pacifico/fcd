@@ -1,0 +1,866 @@
+.ig
+MIT License
+
+Copyright (c) 2026 Matheus Pacifico
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+..
+.TH fcd 1 "Oct 2026" "fcd 1.0.0" "fcd - an interactive directory navigator"
+
+.SH NAME
+fcd - an interactive directory navigator powered by fzf
+
+.SH SYNOPSIS
+fcd [\fIoptions\fR]
+
+.SH DESCRIPTION
+\fBfcd\fR is an interactive directory navigator powered by
+.BR fzf (1).
+It provides an interactive interface for browsing directories, mounted drives
+and partitions, and saved bookmarks, with fuzzy search and configurable
+previews, sorting, path display, Git information, clipboard integration, and
+tmux integration.
+
+fcd has three navigation modes:
+
+.br
+* \fBdir\fR browses directories from the current directory or the path given by \fB\-\-walker\-root\fR
+.br
+* \fBdrive\fR lists mounted drives and partitions detected with \fBlsblk\fR
+.br
+* \fBbookmark\fR lists saved bookmarks from the configured bookmark file
+
+.SH OPTIONS
+.SS NOTE
+.TP
+After a target is selected, \fBfcd\fR prints its path to standard output.
+It does not change the current directory of the calling shell by itself.
+Shell integration or a shell wrapper can use the printed path to change
+directories.
+
+.SS OUTPUT
+.TP
+.B "\-\-print0"
+Print output delimited by ASCII NUL characters instead of newline characters
+.TP
+.B "\-\-print\-current"
+Print the target directory even when it is the directory from which
+.B fcd
+was started. Without this option, selecting the starting directory is treated
+as a no-op.
+.TP
+.B "\-\-print\-current\-dot"
+Print \(dq.\(dq when the selected target is the directory from which
+.B fcd
+was started. Selecting the starting directory still returns the current-directory
+status described in the \fBEXIT STATUS\fR section.
+
+.SS NAVIGATION
+.TP
+.BI "\-\-walker=" "OPTS"
+Select the navigation mode and traversal behavior. The value is a
+comma-separated list containing one of the navigation modes and optional
+visibility and symbolic-link settings.
+
+.RS
+.B dir
+.RS
+Browse directories. This is the default navigation mode.
+.RE
+.B drive
+.RS
+List mounted drives and partitions detected through
+.BR lsblk (8).
+Entries without a mount point are ignored, and swap, encrypted,
+and LVM member devices are excluded. The standard system mount points
+(\fB/\fR, \fB/home\fR, \fB/boot\fR, \fB/boot/efi\fR, and \fB/var\fR) are combined
+into a single \fBSystem\fR entry.
+.RE
+.B bookmark
+.RS
+Browse saved bookmarked directories.
+.RE
+.B follow
+.RS
+Follow symbolic links during directory traversal. This is enabled by default.
+.RE
+.B nofollow
+.RS
+Do not follow symbolic links during directory traversal.
+.RE
+.B hidden
+.RS
+Include hidden directories in the navigation list.
+.RE
+.B nohidden
+.RS
+Hide hidden directories in the navigation list. This is enabled by default.
+.RE
+.RE
+
+.RS
+The default value is
+.BR dir,follow,nohidden .
+When using this option, the list must contain \fBexactly one\fR primary navigation mode
+(\fBdir\fR, \fBdrive\fR, or \fBbookmark\fR).
+.RE
+
+.TP
+.BI "\-\-walker\-root=" "DIR"
+Set the root directory for directory navigation. The default is the current
+working directory. The option is primarily meaningful in \fBdir\fR mode.
+
+.TP
+.BI "\-\-walker\-skip=" "DIRS"
+Comma-separated list of directory names to skip during traversal. The
+same skip list is used when generating directory previews. The default is
+.BR .git,node_modules .
+
+.TP
+.BI "\-\-max\-depth=" "MAX_DEPTH"
+Limit directory traversal to the specified positive integer depth. The default
+is \fB1\fR.
+.TP
+.B "\-\-no\-max\-depth"
+Disable the maximum directory traversal depth
+
+.SS SORTING
+.TP
+.BI "\-\-sort" "[=ORDER]"
+Enable sorting of directory entries. \fIORDER\fR can be \fBasc\fR (default) or \fBdesc\fR.
+Since sorting is blocking (requires reading all matching entries before rendering),
+it is recommended to disable it with
+.B \-\-no\-sort
+when using a large
+.B \-\-max\-depth
+to avoid hanging or latency.
+.TP
+.B "\-\-no\-sort"
+Disable sorting of directory entries. Useful to speed up startup time and avoid delays
+when traversing deep directory trees.
+.TP
+.BI "\-\-sort\-order=" "ORDER"
+Deprecated. Use
+.BI "\-\-sort " "[asc|desc]"
+instead.
+
+.SS DISPLAY MODE
+.TP
+.BI "\-\-layout=" "LAYOUT"
+Choose the layout (default: top)
+
+.br
+.BR bottom "       Display from the bottom of the screen"
+.br
+.BR top "          Display from the top of the screen"
+.br
+.BR top\-list "     Display from the top with the list arranged above the input"
+.br
+
+Internally,
+.B bottom
+maps to the fzf
+.B default
+layout,
+.B top
+maps to
+.BR reverse ,
+and
+.B top\-list
+maps to
+.BR reverse\-list .
+.TP
+.BI "\-\-height=" "[~][\-]HEIGHT[%]"
+Display fcd window below the cursor with the given height instead of using
+the full screen.
+
+If a negative value is specified, the height is calculated as the terminal
+height minus the given value.
+
+e.g.
+     \fBfcd \-\-height=\-1\fR
+
+When prefixed with \fB~\fR, the height will be automatically determined in the
+range according to the input size. You can combine \fB~\fR with a negative
+value.
+
+e.g.
+     \fB# Will not take up 100% of the screen
+     fcd \-\-height=~100%
+
+     # Adapt to list size, up to terminal height minus 1
+     fcd \-\-height=~\-1\fR
+
+Adaptive height has the following limitations:
+.br
+* Cannot be used with top/bottom margin and padding given in percent size
+.br
+* Initial rendering is delayed until directory traversal completes or outputs
+enough items to satisfy the calculated height
+
+.TP
+.BI "\-\-min\-height=" "HEIGHT[+]"
+Minimum height when \fB\-\-height\fR is given as a percentage.
+Add \fB+\fR to automatically increase the value according to the other
+layout options so that the specified number of items are visible in the list
+section. The underlying fzf default for percentage heights is \fB10+\fR.
+Ignored when \fB\-\-height\fR is not specified or set as an absolute value.
+
+.TP
+.BI "\-\-margin=" "MARGIN"
+Comma-separated expression for margins around the finder.
+.br
+
+.br
+.RS
+.BR TRBL "     Same margin for top, right, bottom, and left"
+.br
+.BR TB,RL "    Vertical, horizontal margin"
+.br
+.BR T,RL,B "   Top, horizontal, bottom margin"
+.br
+.BR T,R,B,L "  Top, right, bottom, left margin"
+.br
+
+.br
+Each part can be given in absolute number or in percentage relative to the
+terminal size with \fB%\fR suffix.
+.br
+
+.br
+e.g.
+     \fBfcd \-\-margin 10%
+     fcd \-\-margin 1,5%\fR
+.RE
+.TP
+.BI "\-\-padding=" "PADDING"
+Comma-separated expression for padding inside the border. Padding is
+distinguishable from margin only when a border is drawn.
+.br
+
+.br
+e.g.
+     \fBfcd \-\-margin 5% \-\-padding 5% \-\-border rounded\fR
+
+.br
+.RS
+.BR TRBL "     Same padding for top, right, bottom, and left"
+.br
+.BR TB,RL "    Vertical, horizontal padding"
+.br
+.BR T,RL,B "   Top, horizontal, bottom padding"
+.br
+.BR T,R,B,L "  Top, right, bottom, left padding"
+.br
+.RE
+
+.TP
+.BI "\-\-border=" "STYLE"
+Draw border around the finder.
+
+.br
+.BR rounded "       Border with rounded corners (default)"
+.br
+.BR sharp "         Border with sharp corners"
+.br
+.BR bold "          Border with bold lines"
+.br
+.BR double "        Border with double lines"
+.br
+.BR dashed "        Border with dashed lines and rounded corners"
+.br
+.BR block "         Border using block elements; suitable when using different background colors"
+.br
+.BR thinblock "     Border using legacy computing symbols; may not be displayed on some terminals"
+.br
+.BR horizontal "    Horizontal lines above and below the finder"
+.br
+.BR vertical "      Vertical lines on each side of the finder"
+.br
+.BR line "          Single line border (position automatically determined)"
+.br
+.BR top " (up)"
+.br
+.BR bottom " (down)"
+.br
+.BR left
+.br
+.BR right
+.br
+.BR none
+.br
+
+The default is normally
+.BR top .
+When using \fB\-\-popup\fR or \fB\-\-tmux\fR inside tmux, with no explicit tmux options, the
+border can default to \fBnone\fR when the path is anchored in the header or is
+hidden; otherwise the default remains \fBtop\fR.
+
+\fBline\fR style draws a single separator line at the top when \fB\-\-height\fR
+is used.
+
+.TP
+.BI "\-\-ellipsis=" "STR"
+Ellipsis to show when line or path is truncated (default: '··')
+
+.SS LIST SECTION
+.TP
+.B "\-\-highlight\-line"
+Highlight the whole current line
+.TP
+.B "\-\-no\-highlight\-line"
+Disable whole-line highlighting. This is the default.
+.TP
+.B "\-\-cycle"
+Enable cyclic scroll. This is the default.
+.TP
+.B "\-\-no\-cycle"
+Disable cyclic scroll
+.TP
+.BI "\-\-wrap" "[=MODE]"
+Enable line wrap. \fIMODE\fR can be \fBchar\fR or \fBword\fR (default).
+\fBword\fR mode wraps lines at word boundaries (spaces and tabs) instead of
+at arbitrary character positions.
+.TP
+.B "\-\-no\-wrap"
+Disable line wrap
+
+.SS INPUT SECTION
+.TP
+.B "\-\-no\-input"
+Disable and hide the input section
+.TP
+.BI "\-\-info=" "STYLE"
+Determines the display style of the finder info. (e.g. match counter, loading indicator, etc.)
+
+.BR default  "              On the left end of the horizontal separator"
+.br
+.BR right  "                On the right end of the horizontal separator"
+.br
+.BR hidden  "               Do not display finder info"
+.br
+.BR inline  "               After the prompt with the default prefix ' < '"
+.br
+.BR inline:PREFIX  "        After the prompt with a non-default prefix"
+.br
+.BR inline\-right "         On the right end of the prompt line"
+.br
+.BR inline\-right:PREFIX "  On the right end of the prompt line with a custom prefix"
+.br
+
+.TP
+.B "\-\-no\-info"
+A synonym for \fB\-\-info=hidden\fB
+
+.TP
+.BI "\-\-separator=" "STR"
+The given string will be repeated to form the horizontal separator on the info
+line (default: '─' or '-').
+
+ANSI color codes are supported.
+
+.TP
+.B "\-\-no\-separator"
+Hide the information-line separator
+
+.SS PATH DISPLAY
+.TP
+.BI "\-\-path\-position" [=N[:top|bottom|header|none]]
+Configure where the current navigation path is displayed. The value may
+specify a column and an optional anchor, separated by a colon.
+
+.br
+.BR N "        Place the path at column \fIN\fR counted from the left"
+.br
+.BR \-N "       Place the path at column \fIN\fR counted from the right"
+.br
+.BR :top "     Place the path on the top border"
+.br
+.BR :bottom "  Place the path on the bottom border"
+.br
+.BR :header "  Place the path in the header"
+.br
+.BR :none "    Hide the path label"
+.br
+
+When no explicit position is given, fcd selects a path anchor and column
+according to the current border and layout. The value
+.BR 0
+places the path at the center column.
+.TP
+.BI "\-\-path\-padding=" "N"
+Number of spaces placed around the displayed path. The default is \fB1\fR.
+The value must be a non-negative integer.
+.TP
+.BI "\-\-path\-truncate=" "MODE"
+Choose which end of an overlong path is truncated. Supported values are
+.BR start
+and
+.BR end .
+The default is
+.BR start .
+
+.SS PREVIEW WINDOW
+.TP
+.BI "\-\-preview=" "OPTS"
+Configure the preview contents and traversal. The value is a comma-separated
+list containing one or both of
+.BR dir
+and
+.BR file ,
+plus optional visibility, symbolic-link, sorting, display-mode, and depth
+settings.
+
+.br
+.BR dir "       Include directories in the preview"
+.br
+.BR file "      Include files in the preview"
+.br
+.BR follow "    Follow symbolic links. This is enabled by default."
+.br
+.BR nofollow "  Do not follow symbolic links"
+.br
+.BR sort "      Sort preview entries. This is enabled by default."
+.br
+.BR nosort "    Do not sort preview entries"
+.br
+.BR hidden "    Show hidden preview entries"
+.br
+.BR nohidden "  Hide hidden preview entries. This is the default."
+.br
+.BR auto "      Use the navigation hidden-entry setting for preview visibility"
+.br
+.BR asc "       Sort preview entries in ascending order"
+.br
+.BR desc "      Sort preview entries in descending order"
+.br
+.BR list "      Use list format. This is the default format."
+.br
+.BR tree "      Use tree format through"
+.BR tree (1).
+.br
+.BR grid "      Use a compact grid format"
+.br
+.BR N "         Use the non-negative integer \fIN\fR as the maximum preview depth. A value of 0 means unlimited depth."
+.br
+
+At least one of
+.BR dir
+or
+.B file
+must be specified. The configured defaults are
+.BR dir,follow,sort,asc,list,nohidden,1 .
+
+.TP
+.BI "\-\-preview\-window=" "[POSITION][,SIZE[%]][,border\-STYLE][,[no]wrap][,wrap\-word][,[no]follow][,[no]cycle][,[no]info][,[no]hidden][,+SCROLL[OFFSETS][/DENOM]][,~HEADER_LINES][,default][,<SIZE_THRESHOLD(ALTERNATIVE_LAYOUT)]"
+
+.RS
+.B POSITION:
+    \fBup
+    \fBdown
+    \fBleft
+    \fBright
+    \fBnext
+
+\fRDetermines the layout of the preview window. The default is \fBnocycle:nohidden:40%:right\fR.
+
+* \fBnext\fR places the preview window adjacent to the input section, on
+the list side: below the input in the top layout, above the input
+in \fB\-\-layout=bottom\fR.
+
+* If the argument contains \fB:hidden\fR, the preview window will be hidden by
+default. Press \fBCtrl-P\fR to toggle the preview window.
+
+* If size is given as \fB0\fR, preview window will not be visible, but fzf will still
+execute the command in the background.
+
+* Long lines are truncated by default. Line wrap can be enabled with
+\fBwrap\fR flag. \fBwrap\-word\fR flag enables word-level wrapping, which
+breaks lines at word boundaries instead of mid-word.
+
+* Preview window will automatically scroll to the bottom when \fBfollow\fR
+flag is set.
+
+* Cyclic scrolling is enabled with \fBcycle\fR flag.
+
+* To hide the scroll offset information on the top right corner, specify
+\fBnoinfo\fR.
+
+* To change the style of the border of the preview window, specify one of:
+
+.RS
+.br
+.B border\-rounded (default)
+.br
+.B border\-sharp
+.br
+.B border\-bold
+.br
+.B border\-double
+.br
+.B border\-dashed
+.br
+.B border\-block
+.br
+.B border\-thinblock
+.br
+.B border\-horizontal
+.br
+.B border\-top
+.br
+.B border\-bottom
+.br
+.B border\-line
+.br
+.RE
+
+* \fBborder\-line\fR draws a single separator line between the preview window and
+the rest of the interface. See
+.B \-\-border
+for the description of the border styles.
+
+* \fB[:+SCROLL[OFFSETS][/DENOM]]\fR determines the initial scroll offset of the
+preview window.
+
+  - \fBSCROLL\fR can be either a numeric integer or a single-field index expression that refers to a numeric integer or {n} to refer to the zero-based ordinal index of the current item.
+
+  - The optional \fBOFFSETS\fR part is for adjusting the base offset. It should be given as a series of signed integers (\fB\-INTEGER\fR or \fB+INTEGER\fR).
+
+  - The final \fB/DENOM\fR part is for specifying a fraction of the preview window height.
+
+* \fB~HEADER_LINES\fR keeps the top N lines as the fixed header so that they
+are always visible.
+
+* \fBdefault\fR resets all options previously set to the fzf default.
+
+.RS
+e.g.
+     \fB# Non-default scroll window positions and sizes
+     fcd \-\-preview=dir \-\-preview\-window=up,30%
+     fcd \-\-preview=file \-\-preview\-window=down,1
+
+     # Display top 3 lines as the fixed header
+     fcd \-\-preview\-window '~3'\fR
+.RE
+
+* You can specify an alternative set of options that are used only when the size
+  of the preview window is below a certain threshold. Note that only one
+  alternative layout is allowed.
+
+.RS
+e.g.
+     \fBfcd \-\-preview 'file,nosort' \-\-preview\-window 'right,border\-left,<30(up,30%,border\-bottom)'\fR
+.RE
+
+.SS GIT
+.TP
+.BI "\-\-git" "[=OPTS]"
+Display Git repository information in the preview label. When
+.B \-\-git
+is used without a value,
+.BR head
+is enabled by default.
+
+.br
+.BR head "       Show the current HEAD location, such as a branch, tag, or short commit"
+.br
+.BR state "      Show staged and unstaged state indicators. A \fB+\fR indicates staged changes and \fB*\fR indicates unstaged changes."
+.br
+.BR stash "      Show the stash indicator \fBS\fR"
+.br
+.BR untracked "  Show the untracked-files indicator \fB%\fR"
+.br
+.BR conflict "   Show the merge or rebase conflict indicator \fB!\fR"
+.br
+.BR top\-level "  Show Git information only at repository top-level directories"
+.br
+
+At least one of
+.BR head ,
+.BR state ,
+.BR stash ,
+.BR untracked ,
+or
+.B conflict
+must be specified.
+
+.TP
+.B "\-\-no\-git"
+Disable Git information in the preview label
+
+.SS TMUX
+.TP
+.BI "\-\-tmux" "[=OPTS]"
+Run fcd through fzf\-tmux. When
+.IR OPTS
+is supplied, its contents are passed directly to fzf\-tmux; otherwise fcd uses
+fzf\-tmux with its default options. Arguments starting with \-\- are not consumed as
+.IR OPTS
+and are instead processed as fcd options. This option requires fzf\-tmux
+to be installed and is ignored if fcd is not running inside a tmux session.
+
+Available layout options:
+
+.br
+     \fB\-p\fR [W[%][,H[%]]]  Popup window (default: 50%)
+.br
+     \fB\-w\fR WIDTH[%]       Popup width
+.br
+     \fB\-h\fR HEIGHT[%]      Popup height
+.br
+     \fB\-x\fR COL            Popup x-coordinate
+.br
+     \fB\-y\fR ROW            Popup y-coordinate
+.br
+     \fB\-u\fR [HEIGHT[%]]    Split pane above (up)
+.br
+     \fB\-d\fR [HEIGHT[%]]    Split pane below (down)
+.br
+     \fB\-l\fR [WIDTH[%]]     Split pane left
+.br
+     \fB\-r\fR [WIDTH[%]]     Split pane right
+.br
+
+.br
+e.g.
+     \fB# Run in a popup covering 60% of the screen with the fcd layout at the bottom
+     fcd \-\-tmux \-p 60% \-\- \-\-layout=bottom
+     
+     # Run in a bottom split with no border and path position set to header
+     fcd \-\-tmux \-d 40% \-\-border=none \-\-path-position=header\fR
+.br
+
+.TP
+.BI "\-\-popup" "[=[center|top|bottom|left|right][,SIZE[%]][,SIZE[%]][,border\-native]]"
+Start  fcd in a tmux or Zellij floating pane (default \fBcenter,50%\fR). Requires
+tmux 3.3+ or Zellij 0.44+. This option is ignored if fcd is  not  running  inside
+tmux or Zellij.
+
+On  tmux 3.7 or above and on Zellij, the floating pane is not modal; you can
+switch to other panes and windows while fcd is running, and move and  resize
+the pane with the mouse.
+
+The first value specifies the popup position. The following values specify
+the popup width and height. The
+.B border\-native
+option enables the native border style.
+
+e.g.
+     \fB# Popup in the center with 70% width and height
+     fcd \-\-popup 70%
+
+     # Popup on the right with 40% width and 100% height
+     fcd \-\-popup right,40%
+
+     # Popup on the bottom with 100% width and 30% height
+     fcd \-\-popup bottom,30%
+
+     # Popup on the top with 80% width and 40% height
+     fcd \-\-popup top,80%,40%
+
+     # Popup with a native tmux or Zellij border in the center with 80% width and height
+     fcd \-\-popup center,80%,border\-native\fR
+
+.SS OTHERS
+.TP
+.B "\-\-no\-mouse"
+Disable mouse interaction
+.TP
+.B "\-\-ignore\-ctrl\-z"
+Disable the Ctrl\-Z key binding inside the finder
+.TP
+.BI "\-\-query=" "STR"
+Start the finder with the given query
+
+.SS HELP
+.TP
+.B "\-\-version"
+Display version information and exit
+.TP
+.B "\-\-help"
+Show help message
+.TP
+.B "\-\-man"
+Show man page
+
+.SH ENVIRONMENT VARIABLES
+.TP
+.B FCD_DEFAULT_OPTS
+Default options.
+.br
+e.g. \fBexport FCD_DEFAULT_OPTS="\-\-layout=top\-list \-\-border=dashed \-\-cycle"\fR
+.TP
+.B FCD_DEFAULT_OPTS_FILE
+The location of the file that contains the default options.
+.br
+e.g. \fBexport FCD_DEFAULT_OPTS_FILE=~/.fcdrc\fR
+.TP
+.B FCD_BOOKMARKS_FILE
+The location of the file that contains the bookmarks. When unset, the default locations
+described in the
+.BR BOOKMARKS
+section are used.
+.br
+e.g. \fBexport FCD_BOOKMARKS_FILE=~/.config/fcd/bookmarks\fR
+
+.SH EXIT STATUS
+.BR 0 "      Normal exit"
+.br
+.BR 1 "      No match"
+.br
+.BR 2 "      Error"
+.br
+.BR 64 "     Starting directory selected; the status is returned even if it was printed"
+.br
+.BR 130 "    Interrupted with \fBCTRL\-C\fR or \fBESC\fR"
+
+Other non-zero statuses returned by the underlying fzf process are propagated by fcd.
+
+.SH BOOKMARKS
+Bookmarks are stored one per line in
+.B <name>=<path>
+format.
+
+Empty lines and lines beginning with
+.B #
+are ignored. Lines containing
+.B =
+are interpreted as bookmark entries, with the text before the first
+.B =
+as the name and the remaining text as the path.
+
+The bookmark file is selected by
+.BR FCD_BOOKMARKS_FILE .
+When that variable is not set, fcd uses the following order:
+
+.br
+    1. \fB$XDG_CONFIG_HOME/fcd/bookmarks\fR when \fBXDG_CONFIG_HOME\fR is set.
+.br
+    2. \fB$HOME/.config/fcd/bookmarks\fR when \fB$HOME/.config\fR exists.
+.br
+    3. \fB$HOME/.fcd/bookmarks\fR otherwise.
+
+Bookmarks can be saved with
+.B Ctrl\-N
+in any mode, and removed with
+.BR Shift\-Delete
+in bookmark mode.
+
+.SH KEY BINDINGS
+.TP
+.B Enter
+Select the highlighted target and exit
+.TP
+.B Left Arrow
+Navigate to the parent directory or, in drive and bookmark mode, to the
+corresponding parent navigation level
+.TP
+.B Alt\-Left
+Navigate backward through directory navigation history
+.TP
+.B Right Arrow
+Open the highlighted directory and continue navigation into it
+.TP
+.B Alt\-S
+Switch to directory navigation mode
+.TP
+.B Alt\-Q
+Switch to drive navigation mode
+.TP
+.B Alt\-N
+Switch to bookmark navigation mode
+.TP
+.B Ctrl\-N
+Save the selected path as a bookmark. In directory mode the highlighted
+entry is used as the bookmark name. The bookmark file and its parent directory
+are created when necessary.
+.TP
+.B Shift\-Delete
+Delete the highlighted bookmark while in bookmark mode
+.TP
+.B Ctrl\-H
+Toggle hidden directories in the navigation list
+.TP
+.B Alt\-H
+Toggle hidden directories and files in the preview
+.TP
+.B Ctrl\-Y
+Copy the current navigation path to the clipboard
+.TP
+.B Alt\-Y
+Copy the full path of the highlighted item to the clipboard
+.TP
+.B Ctrl\-P
+Toggle the preview window
+.TP
+.B Ctrl\-Home
+Jump to the home directory in directory mode. In drive and bookmark modes,
+reset navigation to the root of the current selected target.
+.TP
+.B Alt\-Home
+Reset navigation to the starting point of the current navigation mode. In
+directory mode this is the directory from which \fBfcd\fR was started; in drive
+and bookmark modes this returns to the top-level list.
+.TP
+.B Ctrl\-R
+Reload the current directory, drive list, or bookmark list
+.PP
+Most standard fzf key bindings remain available where they are not overridden by fcd.
+
+.SH DEPENDENCIES
+.B fcd
+requires
+.BR bash ,
+.BR fzf ,
+and
+.BR find .
+
+The following commands provide optional functionality:
+
+.br
+.BR tree (1)
+for tree-style previews;
+.br
+.BR wl\-copy ,
+.BR xclip ,
+or
+.BR xsel
+for clipboard integration;
+.br
+.BR lsblk (8)
+for drive and partition detection; and
+.br
+.BR sort (1)
+for sorting.
+
+.SH AUTHOR
+Matheus Pacifico
+
+.SH SEE ALSO
+.B Project homepage:
+.RS
+.I https://github.com/matheus\-pacifico/fcd
+.RE
+.br
+
+.BR fzf (1),
+.B fzf\-tmux
+
+.SH LICENSE
+MIT

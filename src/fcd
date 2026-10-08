@@ -1634,6 +1634,7 @@ __fcd_parse_options() {
 			# actions
 			--version) __fcd_version; exit 0 ;;
 			--help) __fcd_help; exit 0 ;;
+			--man) __fcd_man; exit 0 ;;
 
 			--ignore-ctrl-z) _fcd_ignore_ctrl_z=1 ;;
 
@@ -1739,7 +1740,7 @@ __fcd_get_border_style() {
 }
 
 __fcd_version() {
-	builtin printf '%s\n' "fcd $_FCD_VERSION"
+	builtin printf 'fcd %s\n' "$_FCD_VERSION"
 }
 
 __fcd_help() {
@@ -1770,7 +1771,7 @@ Usage: fcd [options]
 
   SORTING
     --sort[=ORDER]           Enable sorting [asc|desc] (default: asc)
-    --no-sort                Disable sorting
+    --no-sort                Disable sorting (recommended for deep traversal to avoid delays)
     --sort-order=ORDER       Sort order [asc|desc] (deprecated: use --sort ORDER)
 
   LAYOUT/UI
@@ -1844,8 +1845,9 @@ Usage: fcd [options]
     --query=STR              Start the finder with the given query
 
   HELP
-    --help                   Show this help message
     --version                Display version information and exit
+    --help                   Show this help message
+    --man                    Show man page
 
   ENVIRONMENT VARIABLES
     FCD_DEFAULT_OPTS         Default options (e.g. '--layout=bottom --no-sort')
@@ -1853,6 +1855,26 @@ Usage: fcd [options]
     FCD_BOOKMARKS_FILE       Location of the bookmarks file (default: $XDG_CONFIG_HOME/fcd/bookmarks)
 
 EOF
+}
+
+__fcd_man() {
+	if man 1 fcd >/dev/null 2>&1; then
+			exec man 1 fcd
+	fi
+
+	local script_dir proj_root local_man
+	script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd -P)"
+	proj_root="$(cd -- "$script_dir/.." && pwd -P)"
+	local_man="$proj_root/man/man1/fcd.1"
+
+	if [ -f "$local_man" ] && command -v man >/dev/null 2>&1; then
+		exec man -l "$local_man"
+	fi
+
+	echo "fcd: man page not installed or found at $local_man" >&2
+	echo "Displaying standard help output instead..." >&2
+	echo
+	__fcd_help
 }
 
 __fcd_remove_comments() {
