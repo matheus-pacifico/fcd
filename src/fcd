@@ -1614,6 +1614,7 @@ __fcd_parse_options() {
 					fi
 					[[ -z $git_value ]] && { builtin printf '%s\n' "${source:-}invalid git option: (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2; }
 					_fcd_git_info=0
+					_fcd_git_head=0; _fcd_git_state=0; _fcd_git_stash=0; _fcd_git_untracked=0; _fcd_git_conflict=0; _fcd_git_top_level=0
 					IFS=',' read -r -a git_opts <<< "$git_value"
 					for opt in "${git_opts[@]}"; do
 						case "$opt" in
