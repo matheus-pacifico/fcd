@@ -30,7 +30,7 @@ function fcd_key_bindings
     return 1
   end
 
-	function __fcd_defaults
+  function __fcd_defaults
     # $argv[1]: Prepend to FCD_DEFAULT_OPTS_FILE and FCD_DEFAULT_OPTS
     # $argv[2..]: Append to FCD_DEFAULT_OPTS_FILE and FCD_DEFAULT_OPTS
     test -n "$FCD_TMUX_HEIGHT"; or set -l FCD_TMUX_HEIGHT 40%
@@ -40,7 +40,7 @@ function fcd_key_bindings
       $FCD_DEFAULT_OPTS $argv[2..]
   end
 
-	function __fcdcmd
+  function __fcdcmd
     test -n "$FCD_TMUX_HEIGHT"; or set -l FCD_TMUX_HEIGHT 40%
     if test -n "$FCD_TMUX_OPTS"
       command fcd --tmux (string split --no-empty ' ' -- "$FCD_TMUX_OPTS") --
@@ -112,7 +112,7 @@ function fcd_key_bindings
     set -l prefix $commandline[3]
 
     set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
-      "--walker=dir,follow,nohidden" \
+      "--walker=dir,follow,nohidden --query=$fcd_query" \
       "$FCD_ALT_S_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
@@ -132,7 +132,7 @@ function fcd_key_bindings
     set -l prefix $commandline[3]
 
 		set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
-      "--walker=drive,follow,nohidden" \
+      "--walker=drive,follow,nohidden --query=$fcd_query" \
       "$FCD_ALT_Q_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
@@ -151,8 +151,8 @@ function fcd_key_bindings
     set -l fcd_query $commandline[2]
     set -l prefix $commandline[3]
 
-		set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
-      "--walker=bookmark,follow,nohidden" \
+    set -lx FCD_DEFAULT_OPTS (__fcd_defaults \
+      "--walker=bookmark,follow,nohidden --query=$fcd_query" \
       "$FCD_ALT_N_OPTS --print0")
 
     set -lx FCD_DEFAULT_OPTS_FILE
@@ -179,8 +179,6 @@ function fcd_key_bindings
     bind \en fcd-bookmarks-widget
     bind -M insert \en fcd-bookmarks-widget
   end
-
-	
 
 end
 
