@@ -1334,6 +1334,7 @@ __fcd_parse_options() {
 						[[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; return 2; }
 						shift; _fcd_root_dir="$1"
 					fi
+					[[ -z "${_fcd_root_dir//[[:space:]]/}" ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; return 2; }
 					;;
 			--walker-skip|--walker-skip=*)
 					if [[ $1 == *=* ]]; then
@@ -1567,7 +1568,7 @@ __fcd_parse_options() {
 					if [[ $1 == *=* ]]; then
 						local tmux_opts="${1#*=}"
 						shift
-						[[ -z "${tmux_opts// /}" || $tmux_opts == *"--"* ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${tmux_opts-}" >&2; return 2; }
+						[[ -z "${tmux_opts//[[:space:]]/}" || $tmux_opts == *"--"* ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${tmux_opts-}" >&2; return 2; }
 						read -r -a _fcd_tmux_opts <<< "$tmux_opts"
 					else
 						[[ $# -lt 2 || $2 == --* ]] && { shift; continue; }
