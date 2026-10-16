@@ -263,8 +263,6 @@ fcd --sort=desc
 
 Sorting is enabled by default and uses ascending order.
 
-> **Note:** `--sort-order` is deprecated in favor of `--sort [asc|desc]`.
-
 ### Output
 
 By default, `fcd` outputs the selected target directory.
