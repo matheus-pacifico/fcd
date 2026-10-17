@@ -1351,7 +1351,7 @@ __fcd_parse_options() {
 						shift; walker_value="$1"
 					fi
 					[[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; return 2; }
-					_fcd_navigation_mode=""
+					_fcd_navigation_mode=""; _fcd_show_hidden=0; _fcd_follow_symlink=1
 					IFS=',' read -r -a walker_opts <<< "$walker_value"
 					for opt in "${walker_opts[@]}"; do
 						case "$opt" in
@@ -1573,6 +1573,7 @@ __fcd_parse_options() {
 					[[ -z $preview_value ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; return 2; }
 					_fcd_p_show_dirs=0
 					_fcd_p_show_files=0
+					_fcd_p_show_hidden=0; _fcd_p_follow_symlink=1; _fcd_p_sort=1; _fcd_p_sort_order="asc"; _fcd_p_mode="list"; _fcd_p_max_depth="1"
 					IFS=',' read -r -a preview_opts <<< "$preview_value"
 					for opt in "${preview_opts[@]}"; do
 						case "$opt" in
