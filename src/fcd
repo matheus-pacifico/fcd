@@ -168,7 +168,7 @@ __fcd_make_toast() {
 	builtin printf '%s' "$toast"
 }
 
-__fcd_get_list_dir_logic () {
+__fcd_get_list_dir_logic() {
 	local max_depth="$1"
 	local sort="$2"
 	local sort_order="$3"
@@ -184,17 +184,54 @@ __fcd_get_list_dir_logic () {
 	elif [[ -n $show_hidden ]]; then
 		if [[ -n $dir ]]; then
 			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path "'"${dir%/}"'/.*" -o -path "'"${dir%/}"'/*/.?*" -o'
-			cmd='builtin printf ".\n" && command find '"${follow_symlink:-}"' "'$dir'" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" "")"' -fstype "sysfs" -o -fstype "devfs" -o -fstype "devtmpfs" -o -fstype "proc" \) -prune -o -type d -printf "%P\n" '"${sort:+ | sort $sort $sort_order}"''
+			cmd='builtin printf ".\n" && command find '"${follow_symlink:-}"' "'$dir'" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" "")"' -fstype "sysfs" -o -fstype "devfs" -o -fstype "devtmpfs" -o -fstype "proc" \) -prune -o -type d -printf "%P\n" '"${sort:+ | sort $sort $sort_order}"
 		else
 			[[ $show_hidden -eq 1 ]] && show_hidden='-false -o' || show_hidden='-path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o'
-			cmd='builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"
+			cmd='if [[ \"${FZF_HEADER_LABEL##*,}\" == \"unlimited\" ]]; then
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null
+			else
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( '"$show_hidden"' '"$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			fi'
 		fi
 	else
-		skip_dirs="$(__fcd_get_skip_dirs_args "$skip_dirs" "list" 1)"
+		skip_dirs="$(__fcd_get_skip_dirs_args "$skip_dirs" "" 1)"
 		cmd='if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
-			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -false -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			if [[ \"${FZF_HEADER_LABEL##*,}\" == \"unlimited\" ]]; then
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 \( -false -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null
+			else
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -false -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			fi
 		else
-			builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			if [[ \"${FZF_HEADER_LABEL##*,}\" == \"unlimited\" ]]; then
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null
+			else
+				builtin printf \".\n\" && command find '"${follow_symlink:-}"' \"$FZF_INPUT_LABEL\" -mindepth 1 '"${max_depth:+ -maxdepth $max_depth}"' \( -path \"${FZF_INPUT_LABEL%/}/.*\" -o -path \"${FZF_INPUT_LABEL%/}/*/.?*\" -o '"$skip_dirs"' -fstype \"sysfs\" -o -fstype \"devfs\" -o -fstype \"devtmpfs\" -o -fstype \"proc\" \) -prune -o -type d -printf \"%P\n\" 2>/dev/null '"${sort:+ | sort $sort $sort_order}"'
+			fi
+		fi'
+	fi
+
+	builtin printf '%s' "$cmd"
+}
+
+__fcd_get_toggle_max_depth_logic() {
+	local max_depth="$1"
+	local rebuild_path="$2"
+	local cmd
+
+	if [[ -z $max_depth ]]; then
+		cmd='printf "noop">'
+	else
+		cmd='if [[ -z $FZF_INPUT_LABEL ]]; then
+			printf "noop"
+		else
+			hidden_state="${FZF_HEADER_LABEL%,*}"
+			[[ "${FZF_HEADER_LABEL##*,}" == "unlimited" ]] && max_depth="'"$max_depth"'" || max_depth="unlimited"
+			printf "%s" "change-header-label($hidden_state,$max_depth)"
+		fi>+transform:if [[ -z $FZF_INPUT_LABEL ]]; then
+			printf "noop"
+		else
+			'"${rebuild_path:+"$(__fcd_rebuild_path)"}"'
+			printf "%s" "rebind(load)+reload('"$(__fcd_get_list_dir_logic "$max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
 		fi'
 	fi
 
@@ -454,7 +491,8 @@ __fcd_get_preview_logic() {
     printf "%${padding}s%s" "" "$text"
 	elif [[ -n $SELECTED ]]; then
 		full_path="${FZF_INPUT_LABEL%/}/${SELECTED#/}"
-		if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
+		show_hidden="${FZF_HEADER_LABEL%,*}"
+		if [[ ${show_hidden##*,} -eq 1 ]]; then
 			'"$(__fcd_get_preview_command "$mode" "$show_dirs" "$show_files" "$max_depth" "$sort" "$sort_order" 1 "$follow_symlink" "$skip_dirs")"'
 		else
 			'"$(__fcd_get_preview_command "$mode" "$show_dirs" "$show_files" "$max_depth" "$sort" "$sort_order" 0 "$follow_symlink" "$skip_dirs")"'
@@ -522,22 +560,14 @@ __fcd_get_nav_prev_logic() {
 }
 
 __fcd_get_nav_next_logic() {
-	local max_depth="$1"
-	local cmd='current_position=$(({n} + 1))'
-
-	if [[ $max_depth -eq 1 ]]; then
-		cmd="$cmd"'
-		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p,1" || FZF_LIST_LABEL="${current_position}p,1"'
+	local cmd='current_position=$(({n} + 1))
+	if [[ -z $FZF_INPUT_LABEL ]]; then
+		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p,1" || FZF_LIST_LABEL="${current_position}p,1"
 	else
-		cmd="$cmd"'
-		if [[ -z $FZF_INPUT_LABEL ]]; then
-			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p,1" || FZF_LIST_LABEL="${current_position}p,1"
-		else
-			bars_only="${SELECTED//[^\/]/}"
-			positions="${bars_only//\//,1}"
-			[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p${positions:-},1" || FZF_LIST_LABEL="${current_position}p${positions:-},1"
-		fi'
-	fi
+		bars_only="${SELECTED//[^\/]/}"
+		positions="${bars_only//\//,1}"
+		[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},${current_position}p${positions:-},1" || FZF_LIST_LABEL="${current_position}p${positions:-},1"
+	fi'
 
 	builtin printf '%s' "$cmd"
 }
@@ -693,7 +723,7 @@ __fcd_launch_dir_fzf() {
 	else
 		p_view_hidden="$_fcd_p_show_hidden"
 	fi
-	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden},${_fcd_max_depth}"
 
 	if [[ -n $_fcd_root_dir ]]; then
 		if ! dir=$(builtin cd -- "$_fcd_root_dir" 2>/dev/null && builtin pwd); then
@@ -755,7 +785,7 @@ __fcd_launch_dir_fzf() {
 					printf "noop"
 				else
 					SELECTED={}
-					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					'"$(__fcd_get_nav_next_logic)"'
 					_PATH="${FZF_INPUT_LABEL%/}/${SELECTED#/}"
 					FZF_INPUT_LABEL="$_PATH"
 					'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
@@ -769,11 +799,12 @@ __fcd_launch_dir_fzf() {
 				else
 					CURRENT_POSITION=$(({n} + 1))
 					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
-					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; P_SHOW_HIDDEN="${P_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
 					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
-						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
 					else
-						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
 					fi
 				fi' \
 		--bind 'alt-h:transform:
@@ -781,10 +812,12 @@ __fcd_launch_dir_fzf() {
 					printf "noop"
 				else
 					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
-					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
-						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					PREVIEW_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; PREVIEW_SHOW_HIDDEN="${PREVIEW_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
+					if [[ $PREVIEW_SHOW_HIDDEN -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					else
-						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
+						printf "%s" "change-header-label($SHOW_HIDDEN,1,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					fi
 				fi' \
 		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
@@ -800,6 +833,7 @@ __fcd_launch_dir_fzf() {
 				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
 		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
 		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth")" \
 		--bind 'enter:become:'"$(__fcd_get_enter_action)" \
 		--bind 'alt-q:become('"$(__fcd_get_dir_toggle_action 'alt-q' "$_fcd_max_depth")"')' \
 		--bind 'alt-n:become('"$(__fcd_get_dir_toggle_action 'alt-n' "$_fcd_max_depth")"')' \
@@ -830,7 +864,7 @@ __fcd_launch_drive_fzf() {
 	else
 		p_view_hidden="$_fcd_p_show_hidden"
 	fi
-	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden},${_fcd_max_depth}"
 
 	drives="$(__fcd_list_drives)"
 	[[ -z $drives ]] && footer_msg="No drives found!"
@@ -917,7 +951,7 @@ __fcd_launch_drive_fzf() {
 				else
 					SEP=$'"'\t'"'
 					SELECTED={}
-					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					'"$(__fcd_get_nav_next_logic)"'
 					if [[ -z $FZF_INPUT_LABEL ]]; then
 						PREFIX="(${SELECTED%%$SEP*})"
 						BASE_PATH="${SELECTED##*$SEP}"
@@ -944,11 +978,12 @@ __fcd_launch_drive_fzf() {
 					'"$(__fcd_rebuild_path)"'
 					CURRENT_POSITION=$(({n} + 1))
 					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
-					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; P_SHOW_HIDDEN="${P_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
 					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
-						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
 					else
-						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
 					fi
 				fi' \
 		--bind 'alt-h:transform:
@@ -957,10 +992,12 @@ __fcd_launch_drive_fzf() {
 				else
 				'"$(__fcd_rebuild_path)"'
 					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
-					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
-						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					PREVIEW_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; PREVIEW_SHOW_HIDDEN="${PREVIEW_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
+					if [[ $PREVIEW_SHOW_HIDDEN -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					else
-						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
+						printf "%s" "change-header-label($SHOW_HIDDEN,1,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					fi
 				fi' \
 		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
@@ -997,6 +1034,7 @@ __fcd_launch_drive_fzf() {
 		--bind 'alt-y:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_enter_action)" \
@@ -1033,7 +1071,7 @@ __fcd_launch_bookmark_fzf() {
 	else
 		p_view_hidden="$_fcd_p_show_hidden"
 	fi
-	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden}"
+	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden},${_fcd_max_depth}"
 
 	builtin printf ' ' | $(__fcd_fzfcmd) ${_fcd_tmux_opts[@]:+ "${_fcd_tmux_opts[@]}" -- } \
 		${_fcd_height:+ --height "$_fcd_height"} ${_fcd_min_height:+ --min-height "$_fcd_min_height"} --layout="$_fcd_layout" --scheme="path" \
@@ -1126,7 +1164,7 @@ __fcd_launch_bookmark_fzf() {
 				else
 					SEP=$'"'\t'"'
 					SELECTED={}
-					'"$(__fcd_get_nav_next_logic "$_fcd_max_depth")"'
+					'"$(__fcd_get_nav_next_logic)"'
 					if [[ -z $FZF_INPUT_LABEL ]]; then
 						PREFIX="[${SELECTED%%$SEP*}]"
 						BASE_PATH="${SELECTED##*$SEP}"
@@ -1156,11 +1194,12 @@ __fcd_launch_bookmark_fzf() {
 					'"$(__fcd_rebuild_path)"'
 					CURRENT_POSITION=$(({n} + 1))
 					[[ $FZF_LIST_LABEL == *","* ]] && FZF_LIST_LABEL="${FZF_LIST_LABEL%,*},$CURRENT_POSITION" || FZF_LIST_LABEL="$CURRENT_POSITION"
-					P_SHOW_HIDDEN="${FZF_HEADER_LABEL##*,}"
+					P_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; P_SHOW_HIDDEN="${P_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
 					if [[ ${FZF_HEADER_LABEL%%,*} -eq 1 ]]; then
-						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(0,'"${p_show_hidden:-0}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "0" "$_fcd_skip_dirs")"')"
 					else
-						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"')+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
+						printf "%s" "change-header-label(1,'"${p_show_hidden:-1}"',$MAX_DEPTH)+change-list-label($FZF_LIST_LABEL)+rebind(load)+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "1" "$_fcd_skip_dirs")"')"
 					fi
 				fi' \
 		--bind 'alt-h:transform:
@@ -1169,11 +1208,12 @@ __fcd_launch_bookmark_fzf() {
 				else
 				'"$(__fcd_rebuild_path)"'
 					SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
-					if [[ ${FZF_HEADER_LABEL##*,} -eq 1 ]]; then
-						printf "%s" "change-header-label($SHOW_HIDDEN,0)+rebind(load)+refresh-preview"
+					PREVIEW_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; PREVIEW_SHOW_HIDDEN="${PREVIEW_SHOW_HIDDEN##*,}"
+					MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
+					if [[ $PREVIEW_SHOW_HIDDEN -eq 1 ]]; then
+						printf "%s" "change-header-label($SHOW_HIDDEN,0,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					else
-						printf "%s" "change-header-label($SHOW_HIDDEN,1)+rebind(load)+refresh-preview"
-					fi
+						printf "%s" "change-header-label($SHOW_HIDDEN,1,$MAX_DEPTH)+rebind(load)+refresh-preview"
 				fi' \
 		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "%s" "bg-cancel+change-footer()+rebind(ctrl-y)+rebind(alt-y)+rebind(ctrl-h)+rebind(alt-h)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
@@ -1212,6 +1252,7 @@ __fcd_launch_bookmark_fzf() {
 		--bind 'alt-y:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_enter_action)" \
