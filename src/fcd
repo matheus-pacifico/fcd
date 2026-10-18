@@ -698,6 +698,29 @@ __fcd_get_info_command() {
 	builtin printf '%s' "$cmd"
 }
 
+__fcd_get_open_manager_logic() {
+	local cmd
+
+	cmd='selected={}
+	if [[ -z $selected ]]; then
+		printf "%s" "'"$(__fcd_make_toast "No directory to open!" MEDIUM "yellow")"'"
+	else
+		if [[ $selected == "." ]]; then
+			target_path="$FZF_INPUT_LABEL"
+		else
+			selected="${selected##*$'"'\t'"'}"
+			target_path="${FZF_INPUT_LABEL%/}/${selected#/}"
+		fi
+		if ! (xdg-open "$target_path" >/dev/null 2>&1 &); then
+			printf "%s" "'"$(__fcd_make_toast "Failed to open file manager!" MEDIUM "red")"'"
+		else
+			printf "noop"
+		fi
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
 __fcd_fzfcmd() {
 	(( _fcd_use_tmux )) && builtin printf 'command fzf-tmux' || builtin printf 'command fzf'
 }
@@ -835,6 +858,7 @@ __fcd_launch_dir_fzf() {
 				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
 		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
 		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-o:transform:'"$(__fcd_get_open_manager_logic)" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth")" \
 		--bind 'enter:become:'"$(__fcd_get_enter_action)" \
 		--bind 'alt-q:become('"$(__fcd_get_dir_toggle_action 'alt-q' "$_fcd_max_depth")"')' \
@@ -1036,6 +1060,9 @@ __fcd_launch_drive_fzf() {
 		--bind 'alt-y:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-o:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_manager_logic)" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
@@ -1254,6 +1281,9 @@ __fcd_launch_bookmark_fzf() {
 		--bind 'alt-y:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
+		--bind 'ctrl-o:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_manager_logic)" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
