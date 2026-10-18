@@ -313,7 +313,7 @@ __fcd_get_go_to_logic() {
 	local path_column="${10}"
 	local cmd
 
-	cmd='if [[ $_PATH == $FZF_INPUT_LABEL ]]; then
+	cmd='if [[ -z $_PATH || $_PATH == $FZF_INPUT_LABEL ]]; then
 		printf "noop"
 	else
 		FZF_INPUT_LABEL="$_PATH"
@@ -830,6 +830,8 @@ __fcd_launch_dir_fzf() {
 		--bind 'ctrl-home:transform:_PATH="$HOME"
 				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
 		--bind 'alt-home:transform:_PATH="'"$dir"'"
+				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
+		--bind 'alt--:transform:_PATH="$OLDPWD"
 				'"$(__fcd_get_go_to_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_skip_dirs" "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")" \
 		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
 		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
