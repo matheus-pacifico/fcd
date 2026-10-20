@@ -137,26 +137,31 @@ fcd --walker=bookmark \
 
 ### In-Finder Controls
 
-| **Key**                 | **Action**                                         |
-| ----------------------- | -------------------------------------------------- |
-| `Enter`                 | Select the highlighted directory and exit          |
-| `Left Arrow`            | Navigate to parent directory                       |
-| `Alt-Left`              | Navigate back multiple directory levels in history |
-| `Right Arrow`           | Open highlighted directory                         |
-| `Alt-S`                 | Switch to standard directory browsing mode         |
-| `Alt-Q`                 | Switch to drive selection mode                     |
-| `Alt-N`                 | Switch to saved bookmarks mode                     |
-| `Ctrl-N`                | Bookmark currently selected path                   |
-| `Shift-Delete`          | Delete highlighted bookmark (in bookmark mode)     |
-| `Ctrl-H`                | Toggle hidden directories                          |
-| `Alt-H`                 | Toggle hidden directories/files in preview         |
-| `Ctrl-Y`                | Copy target directory path to clipboard            |
-| `Alt-Y`                 | Copy highlighted path to clipboard                 |
-| `Ctrl-P`                | Toggle preview window                              |
-| `Ctrl-Home`             | Jump directly to home directory                    |
-| `Alt-Home`              | Reset navigation back to starting directory        |
-| `Ctrl-R`                | Reload current directory, drive or bookmark list   |
-| `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                             |
+| **Key**                 | **Action**                                          |
+| ----------------------- | --------------------------------------------------- |
+| `Enter`                 | Select the highlighted directory and exit           |
+| `Left Arrow`            | Navigate to parent directory                        |
+| `Alt-Left`              | Navigate back multiple directory levels in history  |
+| `Right Arrow`           | Open highlighted directory                          |
+| `Alt-S`                 | Switch to standard directory browsing mode          |
+| `Alt-Q`                 | Switch to drive selection mode                      |
+| `Alt-N`                 | Switch to saved bookmarks mode                      |
+| `Ctrl-N`                | Bookmark currently selected path                    |
+| `Shift-Delete`          | Delete highlighted bookmark (in bookmark mode)      |
+| `Ctrl-O`                | Open selected directory in the default file manager |
+| `Ctrl-T`                | Open selected directory in a new terminal tab       |
+| `Alt-T`                 | Open selected directory in a new terminal window    |
+| `Alt--`                 | Jump to previous directory (`$OLDPWD`) in dir mode  |
+| `Ctrl-\`                | Toggle search max-depth limit                       |
+| `Ctrl-H`                | Toggle hidden directories                           |
+| `Alt-H`                 | Toggle hidden directories/files in preview          |
+| `Ctrl-Y`                | Copy target directory path to clipboard             |
+| `Alt-Y`                 | Copy highlighted path to clipboard                  |
+| `Ctrl-P`                | Toggle preview window                               |
+| `Ctrl-Home`             | Jump directly to home directory                     |
+| `Alt-Home`              | Reset navigation back to starting directory         |
+| `Ctrl-R`                | Reload current directory, drive or bookmark list    |
+| `Ctrl-C`/`Ctrl-G`/`Esc` | Exit without selecting                              |
 
 > **Note:** Most built-in `fzf` keybindings are supported, such as `Ctrl-J` / `Ctrl-K` for item selection, `Shift-Up` / `Shift-Down` for preview scrolling.
 

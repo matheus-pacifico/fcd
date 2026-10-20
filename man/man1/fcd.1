@@ -789,6 +789,21 @@ are created when necessary.
 .B Shift\-Delete
 Delete the highlighted bookmark while in bookmark mode
 .TP
+.B Ctrl\-O
+Open the selected directory using the system's default file manager (xdg-open)
+.TP
+.B Ctrl\-T
+Open the selected directory in a new terminal tab, utilizing context-aware terminal detection
+.TP
+.B Alt\-T
+Open the selected directory in a new terminal window
+.TP
+.B Alt\-\-
+Jump directly to the previous working directory ($OLDPWD) in dir mode
+.TP
+.B Ctrl\-\e
+Toggle between the configured maximum search depth and unlimited depth
+.TP
 .B Ctrl\-H
 Toggle hidden directories in the navigation list
 .TP
