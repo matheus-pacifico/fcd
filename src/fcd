@@ -86,6 +86,8 @@ _fcd_ignore_ctrl_z=""
 _fcd_query=""
 _fcd_define_separator=""
 _fcd_copy_command=""
+_fcd_new_tab_term_command=""
+_fcd_new_win_term_command=""
 
 __fcd_get_skip_dirs_args() {
 	local dirs="$1"
@@ -721,6 +723,125 @@ __fcd_get_open_manager_logic() {
 	builtin printf '%s' "$cmd"
 }
 
+__fcd_detect_terminal() {
+	if [[ -n ${TMUX_PANE-} ]] && command -v tmux >/dev/null 2>&1; then
+		printf '%s' "tmux"
+		return 0
+	fi
+
+	local pid=$$
+	local args=""
+
+	while [[ $pid -gt 1 ]]; do
+		if ! args=$(ps -p "$pid" -o args= 2>/dev/null); then
+			break
+		fi
+
+		case "$args" in
+			*gnome-terminal*) printf '%s' "gnome-terminal"; return 0 ;;
+			*mate-terminal*) printf '%s' "mate-terminal"; return 0 ;;
+			*kitty*)         printf '%s' "kitty"; return 0 ;;
+			*alacritty*)     printf '%s' "alacritty"; return 0 ;;
+			*foot*)          printf '%s' "foot"; return 0 ;;
+			*ghostty*)       printf '%s' "ghostty"; return 0 ;;
+			*konsole*)       printf '%s' "konsole"; return 0 ;;
+			*wezterm*)       printf '%s' "wezterm"; return 0 ;;
+			*tilix*)         printf '%s' "tilix"; return 0 ;;
+			*kgx*|*console*) printf '%s' "kgx"; return 0 ;;
+			*xterm*)         printf '%s' "xterm"; return 0 ;;
+		esac
+
+		pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ')
+		[[ -z $pid ]] && break
+	done
+
+	if [[ -n ${TERMINAL:-} ]] && command -v "$TERMINAL" >/dev/null 2>&1; then
+		printf '%s' "$TERMINAL"
+		return 0
+	fi
+
+	for term in x-terminal-emulator gnome-terminal mate-terminal kitty tilix kgx alacritty foot ghostty konsole wezterm xterm; do
+		if command -v "$term" >/dev/null 2>&1; then
+			printf '%s' "$term"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+__fcd_set_new_tab_win_term_commands() {
+	local fcd_terminal
+	fcd_terminal="$(__fcd_detect_terminal)"
+
+	case "$fcd_terminal" in
+		tmux)
+			_fcd_new_tab_term_command='tmux split-window -h -c "$target_path" 2>/dev/null'
+			_fcd_new_win_term_command='tmux new-window -c "$target_path" 2>/dev/null'
+			;;
+		gnome-terminal)
+			_fcd_new_tab_term_command='(gnome-terminal --tab --working-directory="$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command='(gnome-terminal --working-directory="$target_path" >/dev/null 2>&1 &)'
+			;;
+		ghostty)
+			_fcd_new_tab_term_command='(ghostty +new-tab --working-directory="$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command='(ghostty --working-directory="$target_path" >/dev/null 2>&1 &)'
+			;;
+		tilix)
+			_fcd_new_tab_term_command='(tilix --action=session-add-right --working-directory="$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command='(tilix --working-directory="$target_path" >/dev/null 2>&1 &)'
+			;;
+		kgx|kitty)
+			_fcd_new_tab_term_command='('"$fcd_terminal"' --working-directory="$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command="$_fcd_new_tab_term_command"
+			;;
+		konsole)
+			_fcd_new_tab_term_command='(konsole --new-tab --workdir "$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command='(konsole --workdir "$target_path" >/dev/null 2>&1 &)'
+			;;
+		mate-terminal)
+			_fcd_new_tab_term_command='(mate-terminal --tab --working-directory "$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_win_term_command='(mate-terminal --window --working-directory "$target_path" >/dev/null 2>&1 &)'
+			;;
+		*)
+			if [[ -n "$fcd_terminal" ]]; then
+				_fcd_new_tab_term_command='(cd "$target_path" && "'"${fcd_terminal}"'" >/dev/null 2>&1 &)'
+				_fcd_new_win_term_command="$_fcd_new_tab_term_command"
+			fi
+			;;
+	esac
+
+	_fcd_new_tab_term_command+=' && opened=1'
+	_fcd_new_win_term_command+=' && opened=1'
+}
+
+__fcd_get_open_term_logic() {
+	local open_term_command="$1"
+	local cmd
+
+	cmd='selected={}
+	if [[ -z $selected ]]; then
+		printf "%s" "'"$(__fcd_make_toast "No directory to open!" MEDIUM "yellow")"'"
+	else
+		if [[ $selected == "." ]]; then
+			target_path="$FZF_INPUT_LABEL"
+		else
+			selected="${selected##*$'"'\t'"'}"
+			target_path="${FZF_INPUT_LABEL%/}/${selected#/}"
+		fi
+
+		opened=0
+		'"$open_term_command"'
+		if (( opened == 0 )); then
+			printf "%s" "'"$(__fcd_make_toast "No supported terminal found!" MEDIUM "red")"'"
+		else
+			printf "noop"
+		fi
+	fi'
+
+	builtin printf '%s' "$cmd"
+}
+
 __fcd_fzfcmd() {
 	(( _fcd_use_tmux )) && builtin printf 'command fzf-tmux' || builtin printf 'command fzf'
 }
@@ -859,6 +980,8 @@ __fcd_launch_dir_fzf() {
 		--bind 'ctrl-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" "")" \
 		--bind 'alt-y:transform:'"$(__fcd_get_copy_path_logic "$_fcd_copy_command" 1)" \
 		--bind 'ctrl-o:transform:'"$(__fcd_get_open_manager_logic)" \
+		--bind 'ctrl-t:transform:'"$(__fcd_get_open_term_logic "$_fcd_new_tab_term_command")" \
+		--bind 'alt-t:transform:'"$(__fcd_get_open_term_logic "$_fcd_new_win_term_command")" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth")" \
 		--bind 'enter:become:'"$(__fcd_get_enter_action)" \
 		--bind 'alt-q:become('"$(__fcd_get_dir_toggle_action 'alt-q' "$_fcd_max_depth")"')' \
@@ -1063,6 +1186,12 @@ __fcd_launch_drive_fzf() {
 		--bind 'ctrl-o:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_open_manager_logic)" \
+		--bind 'ctrl-t:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_term_logic "$_fcd_new_tab_term_command")" \
+		--bind 'alt-t:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_term_logic "$_fcd_new_win_term_command")" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
@@ -1284,6 +1413,12 @@ __fcd_launch_bookmark_fzf() {
 		--bind 'ctrl-o:transform:
 				'"$(__fcd_rebuild_path)
 				$(__fcd_get_open_manager_logic)" \
+		--bind 'ctrl-t:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_term_logic "$_fcd_new_tab_term_command")" \
+		--bind 'alt-t:transform:
+				'"$(__fcd_rebuild_path)
+				$(__fcd_get_open_term_logic "$_fcd_new_win_term_command")" \
 		--bind 'ctrl-\:transform<'"$(__fcd_get_toggle_max_depth_logic "$_fcd_max_depth" 1)" \
 		--bind 'enter:become:
 				'"$(__fcd_rebuild_path)
@@ -2010,6 +2145,8 @@ elif command -v xclip >/dev/null 2>&1; then
 elif command -v xsel >/dev/null 2>&1; then
 	_fcd_copy_command='xsel --clipboard --input'
 fi
+
+__fcd_set_new_tab_win_term_commands
 
 if [[ -z ${FCD_BOOKMARKS_FILE-} ]]; then
 	if [ -n "$XDG_CONFIG_HOME" ]; then
