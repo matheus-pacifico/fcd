@@ -857,6 +857,8 @@ __fcd_launch_dir_fzf() {
 	local sync_status=0
 	local not_a_dir
 	local path_border_pos
+	local init_depth="$_fcd_max_depth"
+	local init_sort="$_fcd_sort"
 
 	[[ $_fcd_path_anchor =~ ^(top|bottom)$ ]] && path_border_pos="$_fcd_path_anchor"
 	[[ $_fcd_max_depth -ne 1 ]] && pos_one="pos(1)"
@@ -867,7 +869,12 @@ __fcd_launch_dir_fzf() {
 	else
 		p_view_hidden="$_fcd_p_show_hidden"
 	fi
-	[[ -z $toggle_history ]] && toggle_history="${_fcd_show_hidden},${p_view_hidden},${_fcd_max_depth}"
+	if [[ -z $toggle_history ]]; then
+		toggle_history="${_fcd_show_hidden},${p_view_hidden},${_fcd_max_depth}"
+	elif [[ "${toggle_history##*,}" == "unlimited" ]]; then
+		init_depth=""
+		init_sort=""
+	fi
 
 	if [[ -n $_fcd_root_dir ]]; then
 		if ! dir=$(builtin cd -- "$_fcd_root_dir" 2>/dev/null && builtin pwd); then
@@ -891,7 +898,7 @@ __fcd_launch_dir_fzf() {
 		--preview='SELECTED={}
 				'"$(__fcd_get_preview_logic "$_fcd_p_mode" "$_fcd_p_show_dirs" "$_fcd_p_show_files" "$_fcd_p_max_depth" "$_fcd_p_sort" "$_fcd_p_sort_order" "$_fcd_p_follow_symlink" "$_fcd_skip_dirs")" \
 		--info-command="$(__fcd_get_info_command)" ${_fcd_ignore_ctrl_z:+ --bind 'ctrl-z:ignore'} \
-		--bind 'start:reload:'"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_show_hidden" "$_fcd_skip_dirs" "$dir" "$not_a_dir")" \
+		--bind 'start:reload:'"$(__fcd_get_list_dir_logic "$init_depth" "$init_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "$_fcd_show_hidden" "$_fcd_skip_dirs" "$dir" "$not_a_dir")" \
 		--bind 'start:+transform:_PATH="$FZF_INPUT_LABEL"
 				'"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
 				printf "%s" "'"$(__fcd_get_path_location_action "$_fcd_path_anchor" 1 "")"'"' ${not_a_dir:+ --bind 'start:+transform: printf "%s" "'"$(__fcd_make_toast "Directory not found!" LONG "red")"'"'} \
