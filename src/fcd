@@ -801,9 +801,6 @@ __fcd_set_new_tab_win_term_commands() {
 			fi
 			;;
 	esac
-
-	_fcd_new_tab_term_command+=' && opened=1'
-	_fcd_new_win_term_command+=' && opened=1'
 }
 
 __fcd_get_open_term_logic() {
@@ -822,7 +819,7 @@ __fcd_get_open_term_logic() {
 		fi
 
 		opened=0
-		'"$open_term_command"'
+		'"${open_term_command:+$open_term_command "&& opened=1"}"'
 		if (( opened == 0 )); then
 			printf "%s" "'"$(__fcd_make_toast "No supported terminal found!" MEDIUM "red")"'"
 		else
