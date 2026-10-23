@@ -1897,16 +1897,26 @@ __fcd_list_drives() {
 	local system_name=""
 	local system_size=0
 
-	local LABEL NAME SIZE MOUNTPOINT FSTYPE
+	local LABEL NAME SIZE MOUNTPOINT FSTYPE key val
 	while IFS= read -r line; do
 		[ -z "$line" ] && continue
 		LABEL='' NAME='' SIZE='' MOUNTPOINT='' FSTYPE=''
 
-		[[ $line =~ (^|[[:space:]])LABEL=\"([^\"]*)\" ]]      && LABEL="${BASH_REMATCH[2]}"
-		[[ $line =~ (^|[[:space:]])NAME=\"([^\"]*)\" ]]       && NAME="${BASH_REMATCH[2]}"
-		[[ $line =~ (^|[[:space:]])SIZE=\"([^\"]*)\" ]]       && SIZE="${BASH_REMATCH[2]}"
-		[[ $line =~ (^|[[:space:]])MOUNTPOINT=\"([^\"]*)\" ]] && MOUNTPOINT="${BASH_REMATCH[2]}"
-		[[ $line =~ (^|[[:space:]])FSTYPE=\"([^\"]*)\" ]]     && FSTYPE="${BASH_REMATCH[2]}"
+		while [ -n "$line" ]; do
+			key="${line%%=\"*}"
+			key="${key##* }"
+			line="${line#*=\"}"
+			val="${line%%\"*}"
+			line="${line#*\"}"
+
+			case "$key" in
+				LABEL)      LABEL="$val" ;;
+				NAME)       NAME="$val" ;;
+				SIZE)       SIZE="$val" ;;
+				MOUNTPOINT) MOUNTPOINT="$val" ;;
+				FSTYPE)     FSTYPE="$val" ;;
+			esac
+		done
 
 		[ -z "$MOUNTPOINT" ] && continue
 		case "$FSTYPE" in swap|crypt|LVM2_member) continue ;; esac
