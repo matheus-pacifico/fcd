@@ -86,6 +86,7 @@ _fcd_ignore_ctrl_z=""
 _fcd_query=""
 _fcd_define_separator=""
 _fcd_copy_command=""
+_fcd_terminal=""
 _fcd_new_tab_term_command=""
 _fcd_new_win_term_command=""
 
@@ -725,45 +726,38 @@ __fcd_get_open_manager_logic() {
 
 __fcd_detect_terminal() {
 	if [[ -n ${TMUX_PANE-} ]] && command -v tmux >/dev/null 2>&1; then
-		printf '%s' "tmux"
-		return 0
+		_fcd_terminal="tmux"; return 0
 	fi
 
-	local pid=$$
-	local args=""
+	case "${TERM_PROGRAM-}" in
+		ghostty) _fcd_terminal="ghostty"; return 0 ;;
+		WezTerm) _fcd_terminal="wezterm"; return 0 ;;
+		kitty)   _fcd_terminal="kitty";   return 0 ;;
+		kgx)     _fcd_terminal="kgx";     return 0 ;;
+		Hyper)   _fcd_terminal="xterm";   return 0 ;;
+	esac
 
-	while [[ $pid -gt 1 ]]; do
-		if ! args=$(ps -p "$pid" -o args= 2>/dev/null); then
-			break
-		fi
+	if [[ -n ${VTE_VERSION-} ]]; then
+		[[ -n ${TILIX_ID-} ]] && { _fcd_terminal="tilix"; return 0; }
+		[[ -n ${MATE_TERMINAL_SERVICE-} ]] && { _fcd_terminal="mate-terminal"; return 0; }
+		[[ -n ${GNOME_TERMINAL_SCREEN-} || -n ${GNOME_TERMINAL_SERVICE-} ]] && { _fcd_terminal="gnome-terminal"; return 0; }
+	fi
 
-		case "$args" in
-			*gnome-terminal*) printf '%s' "gnome-terminal"; return 0 ;;
-			*mate-terminal*) printf '%s' "mate-terminal"; return 0 ;;
-			*kitty*)         printf '%s' "kitty"; return 0 ;;
-			*alacritty*)     printf '%s' "alacritty"; return 0 ;;
-			*foot*)          printf '%s' "foot"; return 0 ;;
-			*ghostty*)       printf '%s' "ghostty"; return 0 ;;
-			*konsole*)       printf '%s' "konsole"; return 0 ;;
-			*wezterm*)       printf '%s' "wezterm"; return 0 ;;
-			*tilix*)         printf '%s' "tilix"; return 0 ;;
-			*kgx*|*console*) printf '%s' "kgx"; return 0 ;;
-			*xterm*)         printf '%s' "xterm"; return 0 ;;
-		esac
-
-		pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ')
-		[[ -z $pid ]] && break
-	done
+	[[ -n ${KITTY_WINDOW_ID-} ]]                                && { _fcd_terminal="kitty";     return 0; }
+	[[ -n ${KONSOLE_VERSION-} || -n ${KONSOLE_DBUS_SESSION-} ]] && { _fcd_terminal="konsole";   return 0; }
+	[[ -n ${WEZTERM_PANE-} ]]                                   && { _fcd_terminal="wezterm";   return 0; }
+	[[ -n ${ALACRITTY_WINDOW_ID-} || -n ${ALACRITTY_SOCKET-} ]] && { _fcd_terminal="alacritty"; return 0; }
+	[[ -n ${XTERM_VERSION-} ]]                                  && { _fcd_terminal="xterm";     return 0; }
+	[[ -n ${FOOT_SERVER_SOCKET-} ]]                             && { _fcd_terminal="foot";      return 0; }
 
 	if [[ -n ${TERMINAL:-} ]] && command -v "$TERMINAL" >/dev/null 2>&1; then
-		printf '%s' "$TERMINAL"
-		return 0
+		_fcd_terminal="$TERMINAL"; return 0
 	fi
 
+	local term
 	for term in x-terminal-emulator gnome-terminal mate-terminal kitty tilix kgx alacritty foot ghostty konsole wezterm xterm; do
 		if command -v "$term" >/dev/null 2>&1; then
-			printf '%s' "$term"
-			return 0
+			_fcd_terminal="$term"; return 0
 		fi
 	done
 
@@ -771,10 +765,7 @@ __fcd_detect_terminal() {
 }
 
 __fcd_set_new_tab_win_term_commands() {
-	local fcd_terminal
-	fcd_terminal="$(__fcd_detect_terminal)"
-
-	case "$fcd_terminal" in
+	case "$_fcd_terminal" in
 		tmux)
 			_fcd_new_tab_term_command='tmux split-window -h -c "$target_path" 2>/dev/null'
 			_fcd_new_win_term_command='tmux new-window -c "$target_path" 2>/dev/null'
@@ -792,7 +783,7 @@ __fcd_set_new_tab_win_term_commands() {
 			_fcd_new_win_term_command='(tilix --working-directory="$target_path" >/dev/null 2>&1 &)'
 			;;
 		kgx|kitty)
-			_fcd_new_tab_term_command='('"$fcd_terminal"' --working-directory="$target_path" >/dev/null 2>&1 &)'
+			_fcd_new_tab_term_command='('"${_fcd_terminal}"' --working-directory="$target_path" >/dev/null 2>&1 &)'
 			_fcd_new_win_term_command="$_fcd_new_tab_term_command"
 			;;
 		konsole)
@@ -804,8 +795,8 @@ __fcd_set_new_tab_win_term_commands() {
 			_fcd_new_win_term_command='(mate-terminal --window --working-directory "$target_path" >/dev/null 2>&1 &)'
 			;;
 		*)
-			if [[ -n "$fcd_terminal" ]]; then
-				_fcd_new_tab_term_command='(cd "$target_path" && "'"${fcd_terminal}"'" >/dev/null 2>&1 &)'
+			if [[ -n $_fcd_terminal ]]; then
+				_fcd_new_tab_term_command='(cd "$target_path" && "'"${_fcd_terminal}"'" >/dev/null 2>&1 &)'
 				_fcd_new_win_term_command="$_fcd_new_tab_term_command"
 			fi
 			;;
@@ -2153,6 +2144,7 @@ elif command -v xsel >/dev/null 2>&1; then
 	_fcd_copy_command='xsel --clipboard --input'
 fi
 
+__fcd_detect_terminal
 __fcd_set_new_tab_win_term_commands
 
 if [[ -z ${FCD_BOOKMARKS_FILE-} ]]; then
