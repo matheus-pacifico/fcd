@@ -2005,6 +2005,8 @@ preview support, configurable navigation, and optional tmux integration.
 Project URL: https://github.com/matheus-pacifico/fcd
 Author: Matheus Pacifico
 
+* See man page for more information: fcd --man
+
 Usage: fcd [options]
 
   OUTPUT
@@ -2072,7 +2074,7 @@ Usage: fcd [options]
                              [,asc|desc][,list|tree|grid][,N]
                              N is max depth (set 0 for unlimited depth)
                              (default: dir,follow,sort,asc,list,nohidden,1)
-    --preview-window=OPT     Preview window layout (default: nocycle:nohidden:40%:right)
+    --preview-window=OPTS    Preview window layout (default: nocycle:nohidden:40%:right)
                              [up|down|left|right|next][,SIZE[%]]
                              [,[no]wrap[-word]][,[no]cycle][,[no]follow][,[no]info]
                              [,[no]hidden][,border-STYLE]
@@ -2083,14 +2085,14 @@ Usage: fcd [options]
     --tmux[=OPTS]            Run fcd through fzf-tmux
                              OPTS are passed directly to fzf-tmux.
                              (e.g., -p 80%, -d 40%)
-    --ignore-ctrl-z          Disable the Ctrl-Z key binding
+    --popup[=OPTS]           Start fcd in a floating pane (requires tmux 3.3+ or Zellij 0.44+)
+                             [center|top|bottom|left|right][,SIZE[%]][,SIZE[%]]
+                             [,border-native] (default: center,50%)
     --git[=OPTS]             Display Git info in preview label
                              [head][,state][,stash][,untracked][,conflict][,top-level] (default: head)
                              top-level requires at least one status option
     --no-git                 Disable Git info in preview label
-    --popup[=OPTS]           Start fcd in a floating pane (requires tmux 3.3+ or Zellij 0.44+)
-                             [center|top|bottom|left|right][,SIZE[%]][,SIZE[%]]
-                             [,border-native] (default: center,50%)
+    --ignore-ctrl-z          Disable the Ctrl-Z key binding
 
   SCRIPTING
     --query=STR              Start the finder with the given query
