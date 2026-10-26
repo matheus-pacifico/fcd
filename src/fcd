@@ -1411,6 +1411,7 @@ __fcd_launch_bookmark_fzf() {
 						printf "%s" "change-header-label($SHOW_HIDDEN,0,$MAX_DEPTH)+rebind(load)+refresh-preview"
 					else
 						printf "%s" "change-header-label($SHOW_HIDDEN,1,$MAX_DEPTH)+rebind(load)+refresh-preview"
+					fi
 				fi' \
 		--bind 'ctrl-r:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
 					printf "%s" "bg-cancel+change-footer()+rebind(ctrl-y)+rebind(alt-y)+rebind(ctrl-h)+rebind(alt-h)+reload('"$(__fcd_get_read_bookmarks_logic)"')"
