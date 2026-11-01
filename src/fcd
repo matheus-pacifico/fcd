@@ -94,12 +94,8 @@ __fcd_get_skip_dirs_args() {
   local dirs="$1"
   local mode="$2"
   local escape_quotes="$3"
-  local begin_prefix=''
-  local prefix=''
-  local sep=''
-  local suffix=''
-  local end_suffix=''
-  local out=''
+  local begin_prefix prefix sep suffix end_suffix
+  local out
 
   if [[ $mode == "tree" ]]; then
     begin_prefix="-I '"
@@ -124,14 +120,14 @@ __fcd_get_skip_dirs_args() {
   IFS=',' read -r -a new_dirs <<< "$dirs"
   for dir in "${new_dirs[@]}"; do
     [[ -z $dir ]] && continue
-    if [[ -n $out ]]; then
-      out+="${prefix:+ -o $prefix}${sep:-}$dir$suffix"
+    if [[ -z $out ]]; then
+      out="$begin_prefix${prefix:-}$dir$suffix"
     else
-      out+="$begin_prefix${prefix:-}$dir$suffix"
+      out+="${prefix:+ -o $prefix}${sep:-}$dir$suffix"
     fi
   done
 
-  [[ -n $out ]] && builtin printf '%s' "$out$end_suffix" || builtin printf ''
+  builtin printf '%s' "${out:+$out$end_suffix}"
 }
 
 __fcd_colorize() {
