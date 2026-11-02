@@ -259,20 +259,17 @@ __fcd_get_path_location_build_logic() {
     elif [[ "'"$truncate"'" == "end" ]]; then
       path_location="${padding:-}${PREFIX:-}${SEP:-}${_PATH:0:cut}'"${ellipsis:-}"'${padding:-}"
     fi
-  fi'
+  fi'$'\n'
   if [[ $path_anchor == "header" ]]; then
     if (( path_column == 0 )); then
-      cmd="$cmd"'
-      spaces=$(((max - ${#path_location}) / 2 - 2))
+      cmd+='spaces=$(((max - ${#path_location}) / 2 - 2))
       (( spaces < 0 )) && spaces=0
       path_location=$(printf "%${spaces}s%s" "" "$path_location")'
     elif (( path_column > 3 )); then
-      cmd="$cmd"'
-      spaces=$(('"$path_column"' - 3))
+      cmd+='spaces=$(('"$path_column"' - 3))
       path_location=$(printf "%${spaces}s%s" "" "$path_location")'
     elif (( path_column < 0 )); then
-      cmd="$cmd"'
-      offset=$((-'"$path_column"'))
+      cmd+='offset=$((-'"$path_column"'))
       spaces=$((max - ${#path_location} - offset - 1))
       (( spaces < 0 )) && spaces=0
       path_location=$(printf "%${spaces}s%s" "" "$path_location")'
@@ -322,7 +319,6 @@ __fcd_get_go_to_logic() {
 
   builtin printf '%s' "$cmd"
 }
-
 
 __fcd_get_git_info_logic() {
   local cmd
@@ -401,13 +397,11 @@ __fcd_get_git_info_logic() {
 __fcd_get_preview_label_logic() {
   local cmd
 
-  git_info="$(__fcd_get_git_info_logic)"
-
   cmd='selected={}
   if [[ -n $selected && $selected != "." ]]; then
     max="$FZF_PREVIEW_COLUMNS"
     selected="${selected%%$'"'\t'"'*}"
-    '"$git_info"'
+    '"$(__fcd_get_git_info_logic)"'
     label_length=$((${#selected} + git_info_length))
     selected="$selected${git_info:+ $git_info}"
     if (( label_length -le 0 )); then
@@ -510,7 +504,7 @@ __fcd_get_preview_command() {
       [[ $show_files -eq 0 ]] && args="-o -type d -printf '%P\n'" || args="-o -type d -printf '%P/\n' -o -type f -printf '%P\n'"
     fi
     args="-mindepth 1 ${max_depth:+ -maxdepth $max_depth} \\( $show_hidden -o $skip_dirs -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune ${args} 2>/dev/null ${sort:+ | sort $sort $sort_order}"
-    [[ $mode == "grid" ]] &&	args="$args | paste -d $'\v' - - | sed 's/\v/ | /g; s/ | $//'"
+    [[ $mode == "grid" ]] && args="$args | paste -d $'\v' - - | sed 's/\v/ | /g; s/ | $//'"
   fi
 
   builtin printf '%s %s' "$cmd" "$args"
@@ -529,7 +523,7 @@ __fcd_get_preview_logic() {
 
   cmd='if [[ $SELECTED == "." ]]; then
     text="── Current directory ──"
-    padding=$(( (FZF_PREVIEW_COLUMNS - ${#text}) / 2 ))
+    padding=$(((FZF_PREVIEW_COLUMNS - ${#text}) / 2))
     (( padding < 0 )) && padding=0
     printf "%${padding}s%s" "" "$text"
   elif [[ -n $SELECTED ]]; then
@@ -562,10 +556,10 @@ __fcd_get_copy_path_logic() {
   local copy_command="$1"
   local copy_selected="$2"
   local resolved_path
-  local cmd
   local success="green"
   local alert="yellow"
   local failure="red"
+  local cmd
 
   if [[ -z $copy_command ]]; then
     cmd='printf "%s" "'"$(__fcd_make_toast "No clipboard utility found!" MEDIUM "$alert")"'"'
@@ -1034,7 +1028,7 @@ __fcd_launch_drive_fzf() {
   local p_show_hidden='$P_SHOW_HIDDEN'
   local p_view_hidden
   local sync_status=0
-  local footer_msg=""
+  local footer_msg
   local path_border_pos
   local initial_header
 
@@ -1148,7 +1142,7 @@ __fcd_launch_drive_fzf() {
             _PATH="${_PATH%/}/${SELECTED#/}"
           fi
           FZF_INPUT_LABEL="${BASE_PATH%/}/${_PATH#/}"
-          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
           printf "%s" "change-input-label($BASE_PATH$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
         fi' \
     --bind 'load:transform('"$(__fcd_get_nav_pos_logic)"')+transform-preview-label:'"$(__fcd_rebuild_path)
@@ -1157,7 +1151,7 @@ __fcd_launch_drive_fzf() {
         $(__fcd_get_preview_label_logic)" \
     --bind 'ctrl-h:transform:
         if [[ -z $FZF_INPUT_LABEL ]]; then
-          [[ "'"$sync_status"'" -eq 1 ]] &&	printf "refresh-preview" ||	printf "noop"
+          [[ "'"$sync_status"'" -eq 1 ]] && printf "refresh-preview" || printf "noop"
         else
           '"$(__fcd_rebuild_path)"'
           CURRENT_POSITION=$(({n} + 1))
@@ -1174,7 +1168,7 @@ __fcd_launch_drive_fzf() {
         if [[ -z $FZF_INPUT_LABEL && -z {} || "'"$sync_status"'" -eq 1 ]]; then
           printf "noop"
         else
-        '"$(__fcd_rebuild_path)"'
+          '"$(__fcd_rebuild_path)"'
           SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
           PREVIEW_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; PREVIEW_SHOW_HIDDEN="${PREVIEW_SHOW_HIDDEN##*,}"
           MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
@@ -1201,7 +1195,7 @@ __fcd_launch_drive_fzf() {
           _PATH="/"
           FZF_INPUT_LABEL="${FZF_INPUT_LABEL%%$'"'\t'"'*}"
           [[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1,1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*},1"
-          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
           printf "%s" "change-input-label($FZF_INPUT_LABEL$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
         fi' \
     --bind 'alt-home:transform:if [[ -z $FZF_INPUT_LABEL ]]; then
@@ -1382,7 +1376,7 @@ __fcd_launch_bookmark_fzf() {
         $(__fcd_get_preview_label_logic)" \
     --bind 'ctrl-h:transform:
         if [[ -z $FZF_INPUT_LABEL ]]; then
-          [[ "'"$sync_status"'" -eq 1 ]] &&	printf "refresh-preview" ||	printf "noop"
+          [[ "'"$sync_status"'" -eq 1 ]] && printf "refresh-preview" || printf "noop"
         else
           '"$(__fcd_rebuild_path)"'
           CURRENT_POSITION=$(({n} + 1))
@@ -1399,7 +1393,7 @@ __fcd_launch_bookmark_fzf() {
         if [[ -z $FZF_INPUT_LABEL && -z {} || "'"$sync_status"'" -eq 1 ]]; then
           printf "noop"
         else
-        '"$(__fcd_rebuild_path)"'
+          '"$(__fcd_rebuild_path)"'
           SHOW_HIDDEN="${FZF_HEADER_LABEL%%,*}"
           PREVIEW_SHOW_HIDDEN="${FZF_HEADER_LABEL%,*}"; PREVIEW_SHOW_HIDDEN="${PREVIEW_SHOW_HIDDEN##*,}"
           MAX_DEPTH="${FZF_HEADER_LABEL##*,}"
@@ -1428,7 +1422,7 @@ __fcd_launch_bookmark_fzf() {
           [[ -z $FZF_LIST_LABEL ]] && FZF_LIST_LABEL="1,1" || FZF_LIST_LABEL="${FZF_LIST_LABEL%%,*},1"
           _PATH="$FZF_INPUT_LABEL"
           [[ $_PATH != "/" ]] && _PATH="${FZF_INPUT_LABEL%/}"
-          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'			
+          '"$(__fcd_get_path_location_build_logic "$_fcd_path_padding" "$_fcd_path_truncate" "$_fcd_ellipsis" "$_fcd_path_anchor" "$_fcd_path_column")"'
           _PATH="$AUX_PATH"
           printf "%s" "change-input-label($FZF_INPUT_LABEL$SEP$PREFIX$SEP$_PATH)'"$(__fcd_get_path_location_action "$_fcd_path_anchor" "" 1)"'+clear-query+rebind(load)+change-list-label($FZF_LIST_LABEL)'"${pos_one:++$pos_one}"'+reload('"$(__fcd_get_list_dir_logic "$_fcd_max_depth" "$_fcd_sort" "$_fcd_sort_order" "$_fcd_follow_symlink" "" "$_fcd_skip_dirs")"')"
         fi' \
@@ -1481,12 +1475,9 @@ __fcd_main() {
   local origin_dir="$PWD"
   local current_dir="$origin_dir"
   local out key sel status
-  local nav_history
-  local toggle_history
+  local nav_history toggle_history
 
-  local FZF_DEFAULT_OPTS=''
-  local FZF_DEFAULT_OPTS_FILE=''
-  local FZF_DEFAULT_COMMAND=''
+  local FZF_DEFAULT_OPTS='' FZF_DEFAULT_OPTS_FILE='' FZF_DEFAULT_COMMAND=''
 
   while true; do
     if [[ $_fcd_navigation_mode == "dir" ]]; then
@@ -1713,8 +1704,7 @@ __fcd_parse_options() {
             shift; path_pos_value="$1"
           fi
           [[ -z $path_pos_value ]] && { builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2; return 2; }
-          _fcd_path_anchor=""
-          _fcd_path_column=""
+          _fcd_path_anchor=""; _fcd_path_column=""
           IFS=':' read -r -a path_pos_opts <<< "$path_pos_value"
           for opt in "${path_pos_opts[@]}"; do
             case "$opt" in
@@ -1746,13 +1736,13 @@ __fcd_parse_options() {
           ;;
       --no-info) _fcd_info="hidden" ;;
       --separator|--separator=*)
+          _fcd_define_separator=1
           if [[ $1 == *=* ]]; then
             _fcd_separator="${1#*=}"
           else
             [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}separator character required" >&2; return 2; }
             shift; _fcd_separator="$1"
           fi
-          _fcd_define_separator=1
           ;;
       --no-separator) _fcd_separator=""; _fcd_define_separator=1 ;;
 
@@ -1854,11 +1844,11 @@ __fcd_parse_options() {
           IFS=',' read -r -a git_opts <<< "$git_value"
           for opt in "${git_opts[@]}"; do
             case "$opt" in
-              head)      _fcd_git_head=1; _fcd_git_info=1 ;;
-              state)     _fcd_git_state=1; _fcd_git_info=1 ;;
-              stash)     _fcd_git_stash=1; _fcd_git_info=1 ;;
+              head) _fcd_git_head=1; _fcd_git_info=1 ;;
+              state) _fcd_git_state=1; _fcd_git_info=1 ;;
+              stash) _fcd_git_stash=1; _fcd_git_info=1 ;;
               untracked) _fcd_git_untracked=1; _fcd_git_info=1 ;;
-              conflict)  _fcd_git_conflict=1; _fcd_git_info=1 ;;
+              conflict) _fcd_git_conflict=1; _fcd_git_info=1 ;;
               top-level) _fcd_git_top_level=1 ;;
               '') ;;
               *) builtin printf '%s\n' "${source:-}invalid git option: $opt (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2 ;;
@@ -1884,7 +1874,7 @@ __fcd_parse_options() {
           fi
           ;;
 
-      --)	;;
+      --) ;;
       --print0=*|--print-current-dot=*|--print-current=*|--no-max-depth=*|\
       --no-sort=*|--cycle=*|--no-cycle=*|--highlight-line=*|--no-highlight-line=*|\
       --no-wrap=*|--no-mouse=*|--no-input=*|--no-info=*|--no-separator=*|\
@@ -1892,7 +1882,7 @@ __fcd_parse_options() {
           builtin printf '%s\n' "${source:-}unexpected value for ${1%%=*}: ${1#*=}"
           return 2
           ;;
-      *)	builtin printf '%s\n' "${source:-}unknown option: $1" >&2; return 2 ;;
+      *)  builtin printf '%s\n' "${source:-}unknown option: $1" >&2; return 2 ;;
     esac
     shift
   done
@@ -1992,7 +1982,7 @@ __fcd_version() {
 }
 
 __fcd_help() {
-	cat << 'EOF'
+  cat << 'EOF'
 fcd is an interactive directory and drive navigator powered by fzf.
 
 It provides an interactive interface for browsing directories fuzzy search, 
@@ -2108,7 +2098,7 @@ EOF
 
 __fcd_man() {
   if man 1 fcd >/dev/null 2>&1; then
-      exec man 1 fcd
+    exec man 1 fcd
   fi
 
   local script_dir proj_root local_man
