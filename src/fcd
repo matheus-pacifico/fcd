@@ -555,7 +555,6 @@ __fcd_get_enter_action() {
 __fcd_get_copy_path_logic() {
   local copy_command="$1"
   local copy_selected="$2"
-  local resolved_path
   local success="green"
   local alert="yellow"
   local failure="red"
@@ -565,12 +564,11 @@ __fcd_get_copy_path_logic() {
     cmd='printf "%s" "'"$(__fcd_make_toast "No clipboard utility found!" MEDIUM "$alert")"'"'
   else
     if [[ -n $copy_selected ]]; then
-      resolved_path='selected={}
+      cmd='selected={}
       selected="${selected##*$'"'\t'"'}"
-      [[ -n $selected && $selected != "." ]] && FZF_INPUT_LABEL="${FZF_INPUT_LABEL%/}/${selected#/}"'
+      [[ -n $selected && $selected != "." ]] && FZF_INPUT_LABEL="${FZF_INPUT_LABEL%/}/${selected#/}"'$'\n'
     fi
-    cmd="$resolved_path"'
-    if [[ -z $FZF_INPUT_LABEL ]]; then
+    cmd+='if [[ -z $FZF_INPUT_LABEL ]]; then
       printf "%s" "'"$(__fcd_make_toast "No path to copy!" MEDIUM "$alert")"'"
     elif printf "%s" "$FZF_INPUT_LABEL" | '"$copy_command"' 2>/dev/null; then
       printf "%s" "'"$(__fcd_make_toast "Path copied to clipboard!" SHORT "$success")"'"
@@ -828,11 +826,10 @@ __fcd_set_new_tab_win_term_commands() {
       _fcd_new_tab_term_command='(mate-terminal --tab --working-directory "$target_path" >/dev/null 2>&1 &)'
       _fcd_new_win_term_command='(mate-terminal --window --working-directory "$target_path" >/dev/null 2>&1 &)'
       ;;
+    '') ;;
     *)
-      if [[ -n $_fcd_terminal ]]; then
-        _fcd_new_tab_term_command='(cd "$target_path" && "'"${_fcd_terminal}"'" >/dev/null 2>&1 &)'
-        _fcd_new_win_term_command="$_fcd_new_tab_term_command"
-      fi
+      _fcd_new_tab_term_command='(cd "$target_path" && "'"${_fcd_terminal}"'" >/dev/null 2>&1 &)'
+      _fcd_new_win_term_command="$_fcd_new_tab_term_command"
       ;;
   esac
 }
@@ -1488,7 +1485,7 @@ __fcd_main() {
       out=$(__fcd_launch_bookmark_fzf "$toggle_history")
     fi
     status=$?
-    [[ $status -ne 0 ]] && return $status
+    [[ $status -ne 0 ]] && exit $status
 
     key="${out%%$'\n'*}"; out="${out#*$'\n'}"
     sel="${out%%$'\n'*}"; out="${out#*$'\n'}"
@@ -1496,7 +1493,7 @@ __fcd_main() {
     _fcd_show_hidden="${toggle_history%%,*}"
 
     [[ $key == "reload" ]] && continue
-    [[ -z $sel ]] && return 1
+    [[ -z $sel ]] && exit 1
     if [[ $key != "enter" ]]; then
       if [[ $_fcd_navigation_mode == "dir" ]]; then
         nav_history="${out%%$'\n'*}"
@@ -1513,14 +1510,14 @@ __fcd_main() {
       elif [[ $_fcd_out_on_same == "current" ]]; then
         builtin printf '%s%b' "$sel" "$_fcd_eol"
       fi
-      # Return EX_USAGE (64) to signal a no-op when selecting the current directory
-      return 64
+      # Exit EX_USAGE (64) to signal a no-op when selecting the current directory
+      exit 64
     fi
     builtin printf '%s%b' "$sel" "$_fcd_eol"
     break
   done
 
-  return 0
+  exit 0
 }
 
 __fcd_parse_options() {
@@ -1541,10 +1538,10 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             walker_value="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}walker options required: dir|drive|bookmark[,[no]follow][,[no]hidden]" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}walker options required: dir|drive|bookmark[,[no]follow][,[no]hidden]" >&2; exit 2; }
             shift; walker_value="$1"
           fi
-          [[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; return 2; }
+          [[ -z $walker_value ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; exit 2; }
           _fcd_navigation_mode=""; _fcd_show_hidden=0; _fcd_follow_symlink=1
           IFS=',' read -r -a walker_opts <<< "$walker_value"
           for opt in "${walker_opts[@]}"; do
@@ -1557,25 +1554,25 @@ __fcd_parse_options() {
               follow) _fcd_follow_symlink=1 ;;
               nofollow) _fcd_follow_symlink=0 ;;
               '') ;;
-              *) builtin printf '%s\n' "${source:-}invalid walker option: $opt" >&2; return 2 ;;
+              *) builtin printf '%s\n' "${source:-}invalid walker option: $opt" >&2; exit 2 ;;
             esac
           done
-          [[ -z $_fcd_navigation_mode ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; return 2; }
+          [[ -z $_fcd_navigation_mode ]] && { builtin printf '%s\n' "${source:-}at least 'dir', 'drive' or 'bookmark' should be specified" >&2; exit 2; }
           ;;
       --walker-root|--walker-root=*)
           if [[ $1 == *=* ]]; then
             _fcd_root_dir="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; exit 2; }
             shift; _fcd_root_dir="$1"
           fi
-          [[ -z "${_fcd_root_dir//[[:space:]]/}" ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; return 2; }
+          [[ -z "${_fcd_root_dir//[[:space:]]/}" ]] && { builtin printf '%s\n' "${source:-}no directory specified" >&2; exit 2; }
           ;;
       --walker-skip|--walker-skip=*)
           if [[ $1 == *=* ]]; then
             _fcd_skip_dirs="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}directory names to ignore required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}directory names to ignore required" >&2; exit 2; }
             shift; _fcd_skip_dirs="$1"
           fi
           ;;
@@ -1583,10 +1580,10 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_max_depth="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}maximum depth required: MAX_DEPTH" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}maximum depth required: MAX_DEPTH" >&2; exit 2; }
             shift; _fcd_max_depth="$1"
           fi
-          [[ ! $_fcd_max_depth =~ ^[0-9]+$ || $_fcd_max_depth -eq 0 ]] && { builtin printf '%s\n' "${source:-}maximum depth must be a positive integer" >&2; return 2; }
+          [[ ! $_fcd_max_depth =~ ^[0-9]+$ || $_fcd_max_depth -eq 0 ]] && { builtin printf '%s\n' "${source:-}maximum depth must be a positive integer" >&2; exit 2; }
           ;;
       --no-max-depth) _fcd_max_depth="" ;;
 
@@ -1599,7 +1596,7 @@ __fcd_parse_options() {
             [[ $# -lt 2 || $2 == --* ]] && { _fcd_sort_order="asc"; shift; continue; }
             shift; _fcd_sort_order="$1"
           fi
-          [[ ! "$_fcd_sort_order" =~ ^(asc|desc)$ ]] && { builtin printf '%s\n' "${source:-}invalid sort order (expected: asc or desc)" >&2; return 2; }
+          [[ ! "$_fcd_sort_order" =~ ^(asc|desc)$ ]] && { builtin printf '%s\n' "${source:-}invalid sort order (expected: asc or desc)" >&2; exit 2; }
           ;;
       --no-sort) _fcd_sort=0 ;;
 
@@ -1608,7 +1605,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_height="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}height required: [~][-]HEIGHT[%]" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}height required: [~][-]HEIGHT[%]" >&2; exit 2; }
             shift; _fcd_height="$1"
           fi
           ;;
@@ -1616,7 +1613,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_min_height="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}minimum height required: HEIGHT[+]" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}minimum height required: HEIGHT[+]" >&2; exit 2; }
             shift; _fcd_min_height="$1"
           fi
           ;;
@@ -1624,7 +1621,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_margin="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}margin required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}margin required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; exit 2; }
             shift; _fcd_margin="$1"
           fi
           ;;
@@ -1632,7 +1629,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_padding="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}padding required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}padding required (TRBL / TB,RL / T,RL,B / T,R,B,L)" >&2; exit 2; }
             shift; _fcd_padding="$1"
           fi
           ;;
@@ -1640,10 +1637,10 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_border="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}border style required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}border style required" >&2; exit 2; }
             shift; _fcd_border="$1"
           fi
-          [[ $_fcd_border == "inline" ]] && { builtin printf '%s\n' "${source:-}inline border is not supported for --border" >&2; return 2; }
+          [[ $_fcd_border == "inline" ]] && { builtin printf '%s\n' "${source:-}inline border is not supported for --border" >&2; exit 2; }
           ;;
       --cycle) _fcd_cycle=1 ;;
       --no-cycle) _fcd_cycle=0 ;;
@@ -1656,7 +1653,7 @@ __fcd_parse_options() {
             [[ $# -lt 2 || $2 == --* ]] && { _fcd_wrap="word"; shift; continue; }
             shift; _fcd_wrap="$1"
           fi
-          [[ -z $_fcd_wrap ]] && { builtin printf '%s\n' "${source:-}wrap mode required (char or word)" >&2; return 2; }
+          [[ -z $_fcd_wrap ]] && { builtin printf '%s\n' "${source:-}wrap mode required (char or word)" >&2; exit 2; }
           ;;
       --no-wrap) _fcd_wrap="" ;;
       --no-mouse) _fcd_no_mouse=1 ;;
@@ -1664,16 +1661,16 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_layout="${1#*=}"
           else
-          [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}layout required (bottom / top / top-list)" >&2; return 2; }
+          [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}layout required (bottom / top / top-list)" >&2; exit 2; }
             shift; _fcd_layout="$1"
           fi
-          [[ ! "$_fcd_layout" =~ ^(bottom|top|top-list)$ ]] && { builtin printf '%s\n' "${source:-}invalid layout (expected: bottom / top / top-list)" >&2; return 2; }
+          [[ ! "$_fcd_layout" =~ ^(bottom|top|top-list)$ ]] && { builtin printf '%s\n' "${source:-}invalid layout (expected: bottom / top / top-list)" >&2; exit 2; }
           ;;
       --ellipsis|--ellipsis=*)
           if [[ $1 == *=* ]]; then
             _fcd_ellipsis="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}ellipsis string required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}ellipsis string required" >&2; exit 2; }
             shift; _fcd_ellipsis="$1"
           fi
           ;;
@@ -1681,29 +1678,29 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_path_padding="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path padding required: PADDING" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path padding required: PADDING" >&2; exit 2; }
             shift; _fcd_path_padding="$1"
           fi
-          [[ ! "$_fcd_path_padding" =~ ^[0-9]+$ ]] && { builtin printf '%s\n' "${source:-}path padding must be a non-negative integer" >&2; return 2; }
+          [[ ! "$_fcd_path_padding" =~ ^[0-9]+$ ]] && { builtin printf '%s\n' "${source:-}path padding must be a non-negative integer" >&2; exit 2; }
           ;;
       --path-truncate|--path-truncate=*)
           if [[ $1 == *=* ]]; then
             _fcd_path_truncate="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path truncate required (start or end)" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path truncate required (start or end)" >&2; exit 2; }
             shift; _fcd_path_truncate="$1"
           fi
-          [[ ! "$_fcd_path_truncate" =~ ^(start|end)$ ]] && { builtin printf '%s\n' "${source:-}invalid path truncate (expected: start or end)" >&2; return 2; }
+          [[ ! "$_fcd_path_truncate" =~ ^(start|end)$ ]] && { builtin printf '%s\n' "${source:-}invalid path truncate (expected: start or end)" >&2; exit 2; }
           ;;
       --path-position|--path-position=*)
           local path_pos_value
           if [[ $1 == *=* ]]; then
             path_pos_value="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path position required ([N][:top|bottom|header|none])" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}path position required ([N][:top|bottom|header|none])" >&2; exit 2; }
             shift; path_pos_value="$1"
           fi
-          [[ -z $path_pos_value ]] && { builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2; return 2; }
+          [[ -z $path_pos_value ]] && { builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2; exit 2; }
           _fcd_path_anchor=""; _fcd_path_column=""
           IFS=':' read -r -a path_pos_opts <<< "$path_pos_value"
           for opt in "${path_pos_opts[@]}"; do
@@ -1715,14 +1712,14 @@ __fcd_parse_options() {
                   _fcd_path_column="$opt"
                 else
                   builtin printf '%s\n' "${source:-}invalid path position option: $opt" >&2
-                  return 2
+                  exit 2
                 fi
                 ;;
             esac
           done
           if [[ -z $_fcd_path_anchor && -z $_fcd_path_column ]]; then
             builtin printf '%s\n' "${source:-}invalid path position (expected: [N][:top|bottom|header|none])" >&2
-            return 2
+            exit 2
           fi
           ;;
       --no-input) _fcd_no_input="disabled" ;;
@@ -1730,7 +1727,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_info="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}info style required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}info style required" >&2; exit 2; }
             shift; _fcd_info="$1"
           fi
           ;;
@@ -1740,7 +1737,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_separator="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}separator character required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}separator character required" >&2; exit 2; }
             shift; _fcd_separator="$1"
           fi
           ;;
@@ -1751,7 +1748,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_p_window="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview window layout required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview window layout required" >&2; exit 2; }
             shift; _fcd_p_window="$1"
           fi
           ;;
@@ -1760,10 +1757,10 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             preview_value="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview options required [dir][,file][,[no]follow][,[no]sort][,[no]hidden|auto][,asc|desc][,list|tree|grid][,N]" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}preview options required [dir][,file][,[no]follow][,[no]sort][,[no]hidden|auto][,asc|desc][,list|tree|grid][,N]" >&2; exit 2; }
             shift; preview_value="$1"
           fi
-          [[ -z $preview_value ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; return 2; }
+          [[ -z $preview_value ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; exit 2; }
           _fcd_p_show_dirs=0
           _fcd_p_show_files=0
           _fcd_p_show_hidden=0; _fcd_p_follow_symlink=1; _fcd_p_sort=1; _fcd_p_sort_order="asc"; _fcd_p_mode="list"; _fcd_p_max_depth="1"
@@ -1787,12 +1784,12 @@ __fcd_parse_options() {
                   _fcd_p_max_depth="$opt"
                 else
                   builtin printf '%s\n' "${source:-}invalid preview option: $opt" >&2
-                  return 2
+                  exit 2
                 fi
                 ;;
             esac
           done
-          [[ $_fcd_p_show_dirs -eq 0 && $_fcd_p_show_files -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; return 2; }
+          [[ $_fcd_p_show_dirs -eq 0 && $_fcd_p_show_files -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'dir' or 'file' should be specified" >&2; exit 2; }
           ;;
 
       # tmux
@@ -1803,7 +1800,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             local tmux_opts="${1#*=}"
             shift
-            [[ -z "${tmux_opts//[[:space:]]/}" || $tmux_opts == *"--"* ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${tmux_opts-}" >&2; return 2; }
+            [[ -z "${tmux_opts//[[:space:]]/}" || $tmux_opts == *"--"* ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${tmux_opts-}" >&2; exit 2; }
             read -r -a _fcd_tmux_opts <<< "$tmux_opts"
           else
             [[ $# -lt 2 || $2 == --* ]] && { shift; continue; }
@@ -1813,7 +1810,7 @@ __fcd_parse_options() {
               _fcd_tmux_opts+=("$1")
               shift
             done
-            [[ ${#_fcd_tmux_opts[@]} -eq 0 ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${1-}" >&2; return 2; }
+            [[ ${#_fcd_tmux_opts[@]} -eq 0 ]] && { builtin printf '%s\n' "${source:-}invalid tmux option: ${1-}" >&2; exit 2; }
           fi
           continue
           ;;
@@ -1838,7 +1835,7 @@ __fcd_parse_options() {
             [[ $# -lt 2 || $2 == --* ]] && { _fcd_git_info=1; _fcd_git_head=1; shift; continue; }
             shift; git_value="$1"
           fi
-          [[ -z $git_value ]] && { builtin printf '%s\n' "${source:-}invalid git option: (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2; }
+          [[ -z $git_value ]] && { builtin printf '%s\n' "${source:-}invalid git option: (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; exit 2; }
           _fcd_git_info=0
           _fcd_git_head=0; _fcd_git_state=0; _fcd_git_stash=0; _fcd_git_untracked=0; _fcd_git_conflict=0; _fcd_git_top_level=0
           IFS=',' read -r -a git_opts <<< "$git_value"
@@ -1851,10 +1848,10 @@ __fcd_parse_options() {
               conflict) _fcd_git_conflict=1; _fcd_git_info=1 ;;
               top-level) _fcd_git_top_level=1 ;;
               '') ;;
-              *) builtin printf '%s\n' "${source:-}invalid git option: $opt (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; return 2 ;;
+              *) builtin printf '%s\n' "${source:-}invalid git option: $opt (expected: [,head][,state][,stash][,untracked][,conflict][,top-level])" >&2; exit 2 ;;
             esac
           done
-          [[ $_fcd_git_info -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'head', 'state', 'stash', 'untracked' or 'conflict' should be specified" >&2; return 2; }
+          [[ $_fcd_git_info -eq 0 ]] && { builtin printf '%s\n' "${source:-}at least one of 'head', 'state', 'stash', 'untracked' or 'conflict' should be specified" >&2; exit 2; }
           ;;
       --no-git) _fcd_git_info=0;;
 
@@ -1869,7 +1866,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_query="${1#*=}"
           else
-            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}query string required" >&2; return 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}query string required" >&2; exit 2; }
             shift; _fcd_query="$1"
           fi
           ;;
@@ -1880,9 +1877,9 @@ __fcd_parse_options() {
       --no-wrap=*|--no-mouse=*|--no-input=*|--no-info=*|--no-separator=*|\
       --no-git=*|--version=*|--help=*|--man=*|--ignore-ctrl-z=*)
           builtin printf '%s\n' "${source:-}unexpected value for ${1%%=*}: ${1#*=}"
-          return 2
+          exit 2
           ;;
-      *)  builtin printf '%s\n' "${source:-}unknown option: $1" >&2; return 2 ;;
+      *)  builtin printf '%s\n' "${source:-}unknown option: $1" >&2; exit 2 ;;
     esac
     shift
   done
@@ -2154,9 +2151,7 @@ if [[ -n ${FCD_DEFAULT_OPTS-} ]]; then
     _fcd_args+=("$arg")
   done < <(__fcd_prepare_opts "$FCD_DEFAULT_OPTS")
   __fcd_parse_options '$FCD_DEFAULT_OPTS' "${_fcd_args[@]}"
-  status=$?
   unset _fcd_args
-  [[ $status -ne 0 ]] && exit $status
 fi
 if [[ -n ${FCD_DEFAULT_OPTS_FILE-} ]]; then
   _fcd_opts_file="$(command cat "$FCD_DEFAULT_OPTS_FILE" 2> /dev/null)"
@@ -2165,14 +2160,10 @@ if [[ -n ${FCD_DEFAULT_OPTS_FILE-} ]]; then
     _fcd_args+=("$arg")
   done < <(__fcd_prepare_opts "$_fcd_opts_file")
   __fcd_parse_options "${FCD_DEFAULT_OPTS_FILE}" "${_fcd_args[@]}"
-  status=$?
   unset _fcd_args _fcd_opts_file
-  [[ $status -ne 0 ]] && exit $status
 fi
 if [[ $# -gt 0 ]]; then
   __fcd_parse_options 'fcd' "$@"
-  status=$?
-  [[ $status -ne 0 ]] && exit $status
 fi
 
 __fcd_resolve_opts
