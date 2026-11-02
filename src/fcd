@@ -644,7 +644,7 @@ __fcd_get_bookmark_alt_q_action() {
 __fcd_get_read_bookmarks_logic() {
   local cmd
 
-  cmd='if [ -f \"'"$FCD_BOOKMARKS_FILE"'\" ] && [ -s \"'"$FCD_BOOKMARKS_FILE"'\" ]; then
+  cmd='if [[ -f \"'"$FCD_BOOKMARKS_FILE"'\" ]] && [[ -s \"'"$FCD_BOOKMARKS_FILE"'\" ]]; then
     while IFS= read -r line; do
       case \"\$line\" in
         \"\"|\"#\"*) continue ;;
@@ -1661,7 +1661,7 @@ __fcd_parse_options() {
           if [[ $1 == *=* ]]; then
             _fcd_layout="${1#*=}"
           else
-          [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}layout required (bottom / top / top-list)" >&2; exit 2; }
+            [[ $# -lt 2 ]] && { builtin printf '%s\n' "${source:-}layout required (bottom / top / top-list)" >&2; exit 2; }
             shift; _fcd_layout="$1"
           fi
           [[ ! "$_fcd_layout" =~ ^(bottom|top|top-list)$ ]] && { builtin printf '%s\n' "${source:-}invalid layout (expected: bottom / top / top-list)" >&2; exit 2; }
@@ -1924,10 +1924,10 @@ __fcd_list_drives() {
 
   local LABEL NAME SIZE MOUNTPOINT FSTYPE key val
   while IFS= read -r line; do
-    [ -z "$line" ] && continue
+    [[ -z $line ]] && continue
     LABEL='' NAME='' SIZE='' MOUNTPOINT='' FSTYPE=''
 
-    while [ -n "$line" ]; do
+    while [[ -n $line ]]; do
       key="${line%%=\"*}"
       key="${key##* }"
       line="${line#*=\"}"
@@ -1943,12 +1943,12 @@ __fcd_list_drives() {
       esac
     done
 
-    [ -z "$MOUNTPOINT" ] && continue
+    [[ -z $MOUNTPOINT ]] && continue
     case "$FSTYPE" in swap|crypt|LVM2_member) continue ;; esac
 
     case "$MOUNTPOINT" in
       "/"|"/home"|"/boot"|"/boot/efi"|"/var")
-        [ "$MOUNTPOINT" = "/" ] && system_name="$NAME"
+        [[ $MOUNTPOINT == "/" ]] && system_name="$NAME"
         system_size=$((system_size + SIZE))
         ;;
       *)
@@ -1957,7 +1957,7 @@ __fcd_list_drives() {
     esac
   done < <(command lsblk -P -b -e 1,7,11,179 -o LABEL,NAME,SIZE,MOUNTPOINT,FSTYPE)
 
-  if [ -n "$system_name" ]; then
+  if [[ -n $system_name ]]; then
     drives="System"$'\t'"($system_name) $(__fcd_format_drive_size "$system_size")"$'\t'"/"$'\n'"$drives"
   fi
 
@@ -2103,7 +2103,7 @@ __fcd_man() {
   proj_root="$(cd -- "$script_dir/.." && pwd -P)"
   local_man="$proj_root/man/man1/fcd.1"
 
-  if [ -f "$local_man" ] && command -v man >/dev/null 2>&1; then
+  if [[ -f $local_man ]] && command -v man >/dev/null 2>&1; then
     exec man -l "$local_man"
   fi
 
@@ -2180,9 +2180,9 @@ __fcd_detect_terminal
 __fcd_set_new_tab_win_term_commands
 
 if [[ -z ${FCD_BOOKMARKS_FILE-} ]]; then
-  if [ -n "$XDG_CONFIG_HOME" ]; then
+  if [[ -n $XDG_CONFIG_HOME ]]; then
     FCD_BOOKMARKS_FILE="$XDG_CONFIG_HOME/fcd/bookmarks"
-  elif [ -d "$HOME/.config" ]; then
+  elif [[ -d "$HOME/.config" ]]; then
     FCD_BOOKMARKS_FILE="$HOME/.config/fcd/bookmarks"
   else
     FCD_BOOKMARKS_FILE="$HOME/.fcd/bookmarks"
