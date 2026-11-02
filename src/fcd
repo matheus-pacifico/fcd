@@ -176,7 +176,7 @@ __fcd_get_list_dir_logic() {
   local skip_dirs="$6"
   local dir="$7"
   local print_empty="$8"
-  local cmd=''
+  local cmd
 
   if [[ -n $print_empty ]]; then
     cmd='builtin printf ""'
@@ -286,7 +286,7 @@ __fcd_get_path_location_action() {
   local path_anchor="$1"
   local return_noop="$2"
   local plus="$3"
-  local cmd=''
+  local cmd
 
   if [[ $path_anchor =~ ^(top|bottom)$ ]]; then
     cmd="${plus:++}"'change-border-label($path_location)'
@@ -325,7 +325,7 @@ __fcd_get_go_to_logic() {
 
 
 __fcd_get_git_info_logic() {
-  local cmd=''
+  local cmd
 
   if (( _fcd_git_info == 1 )); then
     cmd='selected_dir={}
@@ -561,8 +561,8 @@ __fcd_get_enter_action() {
 __fcd_get_copy_path_logic() {
   local copy_command="$1"
   local copy_selected="$2"
-  local resolved_path=''
-  local cmd=''
+  local resolved_path
+  local cmd
   local success="green"
   local alert="yellow"
   local failure="red"
@@ -879,7 +879,7 @@ __fcd_launch_dir_fzf() {
   local dir="$2"
   local nav_history="$3"
 
-  local pos_one=""
+  local pos_one
   local p_show_hidden='$P_SHOW_HIDDEN'
   local p_view_hidden
   local sync_status=0
@@ -1029,8 +1029,8 @@ __fcd_launch_dir_fzf() {
 __fcd_launch_drive_fzf() {
   local toggle_history="$1"
 
-  local drives=""
-  local pos_one=""
+  local drives
+  local pos_one
   local p_show_hidden='$P_SHOW_HIDDEN'
   local p_view_hidden
   local sync_status=0
@@ -1247,7 +1247,7 @@ __fcd_launch_drive_fzf() {
 __fcd_launch_bookmark_fzf() {
   local toggle_history="$1"
 
-  local pos_one=""
+  local pos_one
   local p_show_hidden='$P_SHOW_HIDDEN'
   local p_view_hidden
   local sync_status=0
@@ -1481,8 +1481,8 @@ __fcd_main() {
   local origin_dir="$PWD"
   local current_dir="$origin_dir"
   local out key sel status
-  local nav_history=""
-  local toggle_history=""
+  local nav_history
+  local toggle_history
 
   local FZF_DEFAULT_OPTS=''
   local FZF_DEFAULT_OPTS_FILE=''
@@ -1931,8 +1931,8 @@ __fcd_format_drive_size() {
 }
 
 __fcd_list_drives() {
-  local drives=""
-  local system_name=""
+  local drives
+  local system_name
   local system_size=0
 
   local LABEL NAME SIZE MOUNTPOINT FSTYPE key val
